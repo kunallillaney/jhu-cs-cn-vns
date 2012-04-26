@@ -40,6 +40,7 @@ struct packet_details* dl_handleARPPacket(struct sr_instance* sr, struct sr_ethe
         unsigned int arpHeaderLen) 
 {
 	// TODO: Check ethHdr->ether_type and perform request and response handling here.
+	
 }
 
 
@@ -189,7 +190,50 @@ struct packet_details* dl_constructARP(struct sr_instance* sr, struct in_addr ip
 void addToPacketBuffer(struct packet_details* arpPacketDetails, 
 								struct packet_details* ipPacketDetails, uint32_t gatewayIPAddr) 
 {
+	// Prepare the buffer node to be added
+	struct arp_req_details* node = (struct arp_req_details*)malloc(sizeof(struct arp_req_details));
+	node->lastARPRequestSent = getCurrentTimeInSeconds();
+	node->ipPacketDetails = ipPacketDetails;
+	node->arpRequestPacketDetails = arpPacketDetails;
+	node->arpReqCounter = 1;
+	node->next = NULL;
 	
+	struct packet_buffer* ipBufPtr = _pBuf;
+	struct packet_buffer* prevIpBufPtr = ipBufPtr;
+	
+	while(ipBufPtr != NULL) {
+		if(ipBufPtr->destIp == gatewayIPAddr) {
+			if(ipBufPtr->packetListHead == NULL) {
+				// If there are no elements in this IP's buffer
+				ipBufPtr->packetListHead = node;
+			} else {
+				// Add this node to the end
+				struct arp_req_details* bufPtr = ipBufPtr->packetListHead;
+				while(bufPtr->next!=NULL) {
+					bufPtr = bufPtr->next;
+				}
+				bufPtr->next = node;
+			}
+			break; // Very very IMPORTANT
+		}
+		prevIpBufPtr = ipBufPtr;
+		ipBufPtr = ipBufPtr->next;
+	}
+	if(ipBufPtr == NULL) {
+		// When no such buffer is found for this IP
+		struct packet_buffer* ipBuf = (struct packet_buffer*)malloc(sizeof(struct packet_buffer));
+		ipBuf->destIP = gatewayIPAddr;
+		ipBuf->packetListHead = node;
+		ipBuf->next = NULL;
+		
+		if(_pBuf == NULL) {
+			// This is the first entry being added to the IP Packet Buffer
+			_pBuf = ipBuf;
+		} else {
+			// Append at the end of the IP list then
+			prevIpBufPtr->next = ipBuf;
+		}
+	}
 }
  
  /*--------------------------------------------------------------------- 

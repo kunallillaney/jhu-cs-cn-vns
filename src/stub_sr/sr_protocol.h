@@ -168,8 +168,8 @@ struct packet_details
 // Two structures for Buffering Packets while ARP resolution is being done.
 struct arp_req_details
 {
-	struct packet_details 	packetToBeSent; // The original IP packet i.e.. ICMP, IPv4 etc.
-	struct packet_details 	arpRequestPacket; // Here the interface field in packet_details HAVE to be assigned with the "interface" on which the ARP Request was sent
+	struct packet_details* 	ipPacketDetails; // The original IP packet i.e.. ICMP, IPv4 etc.
+	struct packet_details*	arpRequestPacketDetails; // Here the interface field in packet_details HAVE to be assigned with the "interface" on which the ARP Request was sent
 	unsigned int 	arpReqCounter;
 	time_t			lastARPRequestSent;	/* time when the last ARP was sent */
 	struct arp_req_details* next;
@@ -178,7 +178,7 @@ struct arp_req_details
 struct packet_buffer
 {
     uint32_t        destIp;             /* target IP address to which the packets in the buffer needs to be sent */
-	struct arp_req_details* packetList;
+	struct arp_req_details* packetListHead; // Start node of the list
 	struct packet_buffer* next;
 } __attribute__ ((packed)) ;
 
