@@ -120,7 +120,7 @@ void getMACAddressFromARPCache(uint32_t ipAddr, unsigned char* retMacAddr) {
 	while(arpCachePtr != NULL) {
 		if(arpCachePtr->ip == ipAddr) {
 			// Check if this is a stale value and remove if it is so.
-			if(difftime(getCurrentTimeInSeconds(), arpCachePtr->creationTime) > ARP_TIMEOUT) {
+			if(difftime(getCurrentTimeInSeconds(), arpCachePtr->creationTime) > ARP_CACHE_ENTRY_TIMEOUT) {
 				// remove this entry from the ARP cache
 				removeArpEntry(arpCachePtr, prevArpCachePtr);
 			} else {
@@ -405,8 +405,27 @@ void sr_handlepacket(struct sr_instance* sr,
     printf("*** -> Received packet of length %d \n",len);
     dl_handlePacket(sr, packet, len, interface);
 
-	// TODO: Once the current packet is handled, check if there are any ARP-Requests in the PacketBuffer must be resent.
-	// TODO: If there are any such ones, then send and increment the counter. 
-	// TODO: Also remove the nodes whose count has reached 5 and timeout of the last ARP request has occured.
+	// Once the current packet is handled, check if there are any ARP-Requests in the PacketBuffer must be resent.
+	// If there are any such ones, then send and increment the counter. 
+	// Also remove the nodes whose count has reached 5 and timeout of the last ARP request has occured.
+	struct packet_buffer* ipBufPtr = _pBuf;
+	while(ipBufPtr != NULL) {
+		struct arp_req_details* bufPtr = ipBufPtr->packetListHead;
+		while(bufPtr != NULL) {
+			if(difftime(getCurrentTimeInSeconds(),bufPtr->lastARPRequestSent)  >  ARP_REQUEST_TIMEOUT) {
+				if(bufPtr->arpReqCounter == 5) {
+					printf("\nDropping an IP packet because there was no response for the corresponding ARP Request\n");
+				} else {
+					// resend the ARP request packet
+					sr_send_packet(sr, bufPtr->arpRequestPacketDetails->packet, 
+										bufPtr->arpRequestPacketDetails->len, bufPtr->arpRequestPacketDetails->interface);
+					bufPtr->arpReqCounter = bufPtr->arpReqCounter+1;
+					bufPtr->lastARPRequestSent = getCurrentTimeInSeconds();
+				}
+			}
+			bufPtr = bufPtr->next;
+		}
+		ipBufPtr = ipBufPtr->next;
+	}
 	
 }/* end sr_ForwardPacket */
