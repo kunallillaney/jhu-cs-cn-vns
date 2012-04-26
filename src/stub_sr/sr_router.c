@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
 
 #include "sr_if.h"
 #include "sr_rt.h"
@@ -24,8 +25,8 @@
 
 // Two Global Variables
 
-struct packet_buffer *pBuf = NULL;
-struct arp_cache *arpCache = NULL;
+struct packet_buffer *_pBuf = NULL;
+struct arp_cache *_arpCache = NULL;
 
 /*--------------------------------------------------------------------- 
  * Method: dl_handleARPPacket
@@ -56,6 +57,79 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
 {
 	// TODO Kunal: Implement all IP Protocols here.
 }
+
+ 
+ /*--------------------------------------------------------------------- 
+ * Method: getGatewayBasedOnDestinationIP
+ * Scope: Local
+ * Layer: Utility Function for ROUTING TABLE
+ * 
+ * Returns both Gateway IP and Ethernet Interface for the given destination IP address. 
+ * Fetches this information from the ROUTING TABLE.
+ *---------------------------------------------------------------------*/
+void getGatewayBasedOnDestinationIP(struct sr_instance* sr, struct in_addr destIP, uint32_t* retGatewayAddr, char* retRoutingInterface) {
+	struct sr_rt* tempRTptr = sr->routing_table;
+	while(tempRTptr != NULL) {
+		if(tempRTptr->dest.s_addr == 0) {	// TODO: Check if this works. Use Default Gateway if no other destination IP matches.
+			*retGatewayAddr = tempRTptr->gw.s_addr;
+			retRoutingInterface = tempRTptr->interface;
+		}
+		if(tempRTptr->dest.s_addr == destIP.s_addr) {
+			*retGatewayAddr = tempRTptr->gw.s_addr;
+			retRoutingInterface = tempRTptr->interface;
+			break;
+		}
+		tempRTptr = tempRTptr->next;
+	}
+}
+
+time_t getCurrentTimeInSeconds() {
+	time_t current;
+	time(&current);
+	return current;
+}
+
+ /*--------------------------------------------------------------------- 
+ * Method: removeArpEntry
+ * Scope: Local
+ * Layer: Utility Function for ARP CACHE
+ *  
+ * Function to remove a node from the Arp Cache linked list
+ *---------------------------------------------------------------------*/
+void removeArpEntry(struct arp_cache* nodeToBeRemoved, struct arp_cache* prevNode) {
+	if(nodeToBeRemoved == prevNode) {
+		// First node in the linked list
+		_arpCache = nodeToBeRemoved->next;
+	} else {
+		prevNode->next = nodeToBeRemoved->next;
+	}
+	free(nodeToBeRemoved);
+}
+
+ /*--------------------------------------------------------------------- 
+ * Method: getMACAddressFromARPCache
+ * Scope: Local
+ * Layer: Utility Function for ARP CACHE
+ *  
+ * Fetches MAC value of a given IP from the ARP cache. If not found, returns silently.
+ *---------------------------------------------------------------------*/
+void getMACAddressFromARPCache(uint32_t ipAddr, unsigned char* retMacAddr) {
+	struct arp_cache* arpCachePtr = _arpCache;
+	struct arp_cache* prevArpCachePtr = arpCachePtr;
+	while(arpCachePtr != NULL) {
+		if(arpCachePtr->ip == ipAddr) {
+			// Check if this is a stale value and remove if it is so.
+			if(difftime(getCurrentTimeInSeconds(), arpCachePtr->creationTime) > ARP_TIMEOUT) {
+				// remove this entry from the ARP cache
+				removeArpEntry(arpCachePtr, prevArpCachePtr);
+			} else {
+				retMacAddr = arpCachePtr->mac;
+			}
+		}
+		prevArpCachePtr = arpCachePtr;
+		arpCachePtr = arpCachePtr->next;
+	}
+}
  
  /*--------------------------------------------------------------------- 
  * Method: dl_constructEthernetHeader
@@ -63,25 +137,36 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
  * Layer: DataLink Layer
  * 
  * Constructs Ethernet header if MAC value(not stale) is present in ARP Cache. If not present, then sends ARPRequest and returns NULL.
+ * Note that this function will also return appropriate interface in "packet_details" object.
  *---------------------------------------------------------------------*/
 struct packet_details* dl_constructEthernetPacket(struct sr_instance* sr, 
-												struct packet_details *ipPacket, char* interface/* lent */)
+												struct packet_details *ipPacket)
 {
-	// Check in ARP Cache if the MAC corresponing to the required IP is present
 	// 1. From the routing table determine which gateway & eth interface should be used to send the packet
+	struct ip* ipHdr = (struct ip*)ipPacket;
+	struct sr_ethernet_hdr* ethHdr = NULL;
+	uint32_t gatewayAddr;
+	char routingInterface[sr_IFACE_NAMELEN];
+	getGatewayBasedOnDestinationIP(sr, ipHdr->ip_dst, &gatewayAddr, routingInterface);
+	// 2. Now check if the gateway's IP is present in the ARP cache.
+	unsigned char macAddr[ETHER_ADDR_LEN] = "EMPTY";
+	getMACAddressFromARPCache(gatewayAddr, macAddr);
+	if(strncmp((char*)macAddr, "EMPTY", ETHER_ADDR_LEN) == 0) {
+		// 3.Case#1: MAC address was not found in ARP cache. So send ARP Request, add all the details to the packet buffer.
+		// TODO
+	} else {
+		// 3.Case#2: Happy scenario - MAC was found in ARP cache.
+		struct sr_ethernet_hdr tempEthHdr;
+		ethHdr = &tempEthHdr;
+		// NOTE: Here we need to use memcpy instead of strncpy because the data type for MAC addresses is different in "sr_if" and EthernetHeader structures
+		memcpy(ethHdr->ether_dhost, macAddr, ETHER_ADDR_LEN);
+		memcpy(ethHdr->ether_shost, sr_get_interface(sr, routingInterface)->addr, ETHER_ADDR_LEN);
+		ethHdr->ether_type = ETHERTYPE_IP; // TODO: For now, assume that only Network Layer will call this function!
+	}
 	
-	
-	
-	// TODO: Fetch the details of the ethernet header. Say this is present in ethHdr variable
-		// TODO: Do not forget to populate the protocol field too.
-	struct sr_ethernet_hdr* ethHdr = NULL; // TODO: Determine this using ARP cache
-	
-	// TODO: if the ip is not found in the ARP Cache or has a stale entry, 
-		// then send ARP Request and populate this packet in the packet buffer.
-				
+	// 4. Ethernet packet = Ethernet Header + IP Packet
 	unsigned int retPacketLen = sizeof(struct sr_ethernet_hdr) + ipPacket->len;
 	uint8_t* retPacket = (uint8_t*)malloc(retPacketLen);
-	
 	memcpy(retPacket, ethHdr, sizeof(struct sr_ethernet_hdr));
 	memcpy(retPacket + sizeof(struct sr_ethernet_hdr), ipPacket->packet, ipPacket->len);
 	
@@ -91,8 +176,7 @@ struct packet_details* dl_constructEthernetPacket(struct sr_instance* sr,
 	struct packet_details *fullPacketDetails = (struct packet_details*)malloc(sizeof(struct packet_details));
 	fullPacketDetails->packet = retPacket;
 	fullPacketDetails->len = retPacketLen;
-	fullPacketDetails->interface = "";	// TODO: Interface to be determined.
-	
+	strncpy(fullPacketDetails->interface, routingInterface, sr_IFACE_NAMELEN);
 	return fullPacketDetails;  
 }
 
@@ -139,7 +223,7 @@ void dl_handlePacket(struct sr_instance* sr,
 													len-sizeof(struct sr_ethernet_hdr), interface);
 			if(ipPacket != NULL) {
 				// construct the Ethernet header here
-				struct packet_details* fullPacket = dl_constructEthernetPacket(sr, ipPacket, interface);
+				struct packet_details* fullPacket = dl_constructEthernetPacket(sr, ipPacket);
 				if(fullPacket == NULL) {
 					// This means that the ARP resolution was initiated. Hence do not do anything here.
 				} else {

@@ -149,12 +149,20 @@ struct sr_arphdr
     uint32_t        ar_tip;             /* target IP address            */
 } __attribute__ ((packed)) ;
 
+#ifndef ARP_TIMEOUT
+#define ARP_TIMEOUT            10  /* ARP cache entry time-out value */
+#endif
+
+
 // This is a structure to encapsulate packet & interface details
 struct packet_details
 {
+#ifndef sr_IFACE_NAMELEN
+#define sr_IFACE_NAMELEN 32				/* TODO: This constant is duplicated from sr_if.h. Remove this duplication if possible!
+#endif
     uint8_t*		packet;          	/* Packet to be returned to the above layer */
     unsigned int 	len;             	/* length of the packet   */
-    char* 			interface;          /* interface if available/known - not mandatory field */
+    char 			interface[sr_IFACE_NAMELEN];          /* interface if available/known - not mandatory field */
 } __attribute__ ((packed)) ;
 
 // Two structures for Buffering Packets while ARP resolution is being done.
@@ -164,7 +172,7 @@ struct arp_req_details
 	struct packet_details 	arpRequestPacket;
     char* 			interface;          /* interface on which the ARP Request was sent */
 	unsigned int 	arpReqCounter;
-	long			lastARPRequestSent;	/* time when the last ARP was sent */
+	time_t			lastARPRequestSent;	/* time when the last ARP was sent */
 	struct arp_req_details* next;
 } __attribute__ ((packed)) ;
 
@@ -180,7 +188,7 @@ struct arp_cache
 {
 	uint32_t        ip;
 	unsigned char   mac[ETHER_ADDR_LEN];
-	long			creationTime;
+	time_t			creationTime;
 	struct arp_cache* next;
 } __attribute__ ((packed)) ;
 #endif /* -- SR_PROTOCOL_H -- */
