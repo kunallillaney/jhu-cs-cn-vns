@@ -66,11 +66,94 @@ void sr_handlepacket(struct sr_instance* sr,
     assert(interface);
 
     printf("*** -> Received packet of length %d \n",len);
+    dl_handlePacket(sr, packet, len, interface);
 
 }/* end sr_ForwardPacket */
 
 
 /*--------------------------------------------------------------------- 
- * Method:
+ * Method: dl_handlePacket
+ * Scope: Local
+ * Layer: DataLink Layer
+ * 
+ * This method is responsible for handling packets with Ethernet layer header.
  *
  *---------------------------------------------------------------------*/
+ 
+void dl_handlePacket(struct sr_instance* sr, 
+        uint8_t * packet/* lent */,
+        unsigned int len,
+        char* interface/* lent */)
+{
+	// Look at ether_type in the packet's Ethernet header
+	// Call appropriate layer's functions
+	sr_ethernet_hdr *ethHdr = (sr_ethernet_hdr *)packet;
+	switch(ethHdr->ether_type) {
+		case ETHERTYPE_ARP: 
+			// Pass the Ethernet header and the data part of the packet to the ARP Protocol implementor
+			packet_details retPacket = dl_handleARPPacket(sr, ethHdr, 
+									packet+sizeof(sr_ethernet_hdr), len-sizeof(sr_ethernet_hdr));
+			if(retPacket == NULL) {
+				// No job to do as the packet may not be for me or this may be a ARP response.
+			} else {
+				// Send this packet over the interface same as that of the one from which the router recieved this (interface variable)
+				sr_send_packet(sr, retPacket.packet, retPacket.len, interface);
+			}
+			break;
+		case ETHERTYPE_IP:
+			// Do not send the Ethernet header to IP layer. Chop the Ethernet header and send the rest over data.
+			packet_details retPacket = nl_handleIPv4Packet(sr, packet+sizeof(sr_ethernet_hdr), len-sizeof(sr_ethernet_hdr), interface);
+			if(retPacket != NULL) {
+				// construct the Ethernet header here
+				sr_ethernet_hdr ethHdr = dl_constructEthernetHeader(sr, &retPacket, interface);
+				if(ethHdr == NULL) {
+					// This means that the ARP resolution was initiated. Hence do not do anything here.
+					// TODO.
+				} else {
+					// Call send data with packet = ethHdr + retPacket.ipHdr + retPacket.data
+					// TODO.
+				}
+			}
+	}
+}
+
+/*--------------------------------------------------------------------- 
+ * Method: dl_handleARPPacket
+ * Scope: Local
+ * Layer: DataLink Layer
+ * 
+ * Handles all ARP packets that are recieved by this router.
+ *---------------------------------------------------------------------*/
+ packet_details dl_handleARPPacket(struct sr_instance* sr, sr_ethernet_hdr *ethHdr,
+        uint8_t *arpHeader/* lent */,
+        unsigned int arpHeaderLen) 
+{
+	// TODO: Check ethHdr->ether_type and perform request and response handling here.
+}
+ 
+ /*--------------------------------------------------------------------- 
+ * Method: nl_handleIPv4Packet
+ * Scope: Local
+ * Layer: Network Layer
+ * 
+ * Handles all IPv4 packets that are recieved by this router.
+ *---------------------------------------------------------------------*/
+ packet_details nl_handleIPv4Packet(struct sr_instance* sr, 
+		uint8_t *ipPacket/* lent */,
+        unsigned int ipPacketLen, char* interface/* lent */)
+{
+	// TODO Kunal: Implement all IP Protocols here.
+}
+ 
+ /*--------------------------------------------------------------------- 
+ * Method: dl_constructEthernetHeader
+ * Scope: Local
+ * Layer: DataLink Layer
+ * 
+ * Constructs Ethernet header if MAC value(not stale) is present in ARP Cache. If not present, then sends ARPRequest and returns NULL.
+ *---------------------------------------------------------------------*/
+ sr_ethernet_hdr dl_constructEthernetHeader(struct sr_instance* sr, 
+												packet_details *packetDetails, char* interface/* lent */)
+ {
+	 // TODO
+ }

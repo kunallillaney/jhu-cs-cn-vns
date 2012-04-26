@@ -149,5 +149,12 @@ struct sr_arphdr
     uint32_t        ar_tip;             /* target IP address            */
 } __attribute__ ((packed)) ;
 
+// This is a structure to encapsulate packet & interface details
+struct packet_details
+{
+    uint8_t*		packet;          	/* Packet to be returned to the above layer */
+    unsigned int 	len;             	/* length of the packet   */
+    char* 			interface;          /* interface if available/known - not mandatory field */
+} __attribute__ ((packed)) ;
 
 #endif /* -- SR_PROTOCOL_H -- */
