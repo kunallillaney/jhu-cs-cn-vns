@@ -222,7 +222,7 @@ void addToPacketBuffer(struct packet_details* arpPacketDetails,
 	if(ipBufPtr == NULL) {
 		// When no such buffer is found for this IP
 		struct packet_buffer* ipBuf = (struct packet_buffer*)malloc(sizeof(struct packet_buffer));
-		ipBuf->destIP = gatewayIPAddr;
+		ipBuf->destIp = gatewayIPAddr;
 		ipBuf->packetListHead = node;
 		ipBuf->next = NULL;
 		
