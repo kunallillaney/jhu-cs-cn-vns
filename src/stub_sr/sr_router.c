@@ -37,7 +37,7 @@ struct arp_cache *_arpCache = NULL;
  *---------------------------------------------------------------------*/
 struct packet_details* dl_handleARPPacket(struct sr_instance* sr, struct sr_ethernet_hdr *ethHdr,
         uint8_t *arpHeader/* lent */,
-        unsigned int arpHeaderLen) 
+        unsigned int arpHeaderLen, char* interface) 
 {
 	// TODO: Check ethHdr->ether_type and perform request and response handling here.
 	
@@ -314,7 +314,7 @@ void dl_handlePacket(struct sr_instance* sr,
 		case ETHERTYPE_ARP: 
 			// Pass the Ethernet header and the data part of the packet to the ARP Protocol implementor
 			arpPacket = dl_handleARPPacket(sr, ethHdr, 
-									packet+sizeof(struct sr_ethernet_hdr), len-sizeof(struct sr_ethernet_hdr));
+									packet+sizeof(struct sr_ethernet_hdr), len-sizeof(struct sr_ethernet_hdr), interface);
 			if(arpPacket == NULL) {
 				// No job to do as the packet may not be for this router OR this may be a ARP response.
 			} else {
