@@ -13,7 +13,9 @@
 
 #include <stdio.h>
 #include <assert.h>
-
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 #include "sr_if.h"
 #include "sr_rt.h"
@@ -62,11 +64,37 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
  * 
  * Constructs Ethernet header if MAC value(not stale) is present in ARP Cache. If not present, then sends ARPRequest and returns NULL.
  *---------------------------------------------------------------------*/
-struct sr_ethernet_hdr* dl_constructEthernetHeader(struct sr_instance* sr, 
-												struct packet_details *packetDetails, char* interface/* lent */)
- {
-	 // TODO
- }
+struct packet_details* dl_constructEthernetPacket(struct sr_instance* sr, 
+												struct packet_details *ipPacket, char* interface/* lent */)
+{
+	// Check in ARP Cache if the MAC corresponing to the required IP is present
+	// 1. From the routing table determine which gateway & eth interface should be used to send the packet
+	
+	
+	
+	// TODO: Fetch the details of the ethernet header. Say this is present in ethHdr variable
+		// TODO: Do not forget to populate the protocol field too.
+	struct sr_ethernet_hdr* ethHdr = NULL; // TODO: Determine this using ARP cache
+	
+	// TODO: if the ip is not found in the ARP Cache or has a stale entry, 
+		// then send ARP Request and populate this packet in the packet buffer.
+				
+	unsigned int retPacketLen = sizeof(struct sr_ethernet_hdr) + ipPacket->len;
+	uint8_t* retPacket = (uint8_t*)malloc(retPacketLen);
+	
+	memcpy(retPacket, ethHdr, sizeof(struct sr_ethernet_hdr));
+	memcpy(retPacket + sizeof(struct sr_ethernet_hdr), ipPacket->packet, ipPacket->len);
+	
+	// Now free all the memories allocated
+	free(ethHdr);
+	
+	struct packet_details *fullPacketDetails = (struct packet_details*)malloc(sizeof(struct packet_details));
+	fullPacketDetails->packet = retPacket;
+	fullPacketDetails->len = retPacketLen;
+	fullPacketDetails->interface = "";	// TODO: Interface to be determined.
+	
+	return fullPacketDetails;  
+}
 
 /*--------------------------------------------------------------------- 
  * Method: dl_handlePacket
@@ -85,32 +113,48 @@ void dl_handlePacket(struct sr_instance* sr,
 	// Look at ether_type in the packet's Ethernet header
 	// Call appropriate layer's functions
 	struct sr_ethernet_hdr *ethHdr = (struct sr_ethernet_hdr *)packet;
-	struct packet_details *retPacket;
+	struct packet_details *arpPacket;
+	struct packet_details *ipPacket;
 	switch(ethHdr->ether_type) {
 		case ETHERTYPE_ARP: 
 			// Pass the Ethernet header and the data part of the packet to the ARP Protocol implementor
-			retPacket = dl_handleARPPacket(sr, ethHdr, 
+			arpPacket = dl_handleARPPacket(sr, ethHdr, 
 									packet+sizeof(struct sr_ethernet_hdr), len-sizeof(struct sr_ethernet_hdr));
-			if(retPacket == NULL) {
-				// No job to do as the packet may not be for me or this may be a ARP response.
+			if(arpPacket == NULL) {
+				// No job to do as the packet may not be for this router OR this may be a ARP response.
 			} else {
 				// Send this packet over the interface same as that of the one from which the router recieved this (interface variable)
-				sr_send_packet(sr, retPacket->packet, retPacket->len, interface);
+				uint8_t* packetToBeSent = arpPacket->packet;
+				unsigned int packetToBeSentLen = arpPacket->len;
+				
+				// Free all the objects
+				free(arpPacket);
+				
+				sr_send_packet(sr, packetToBeSent, packetToBeSentLen, interface);
 			}
 			break;
 		case ETHERTYPE_IP:
 			// Do not send the Ethernet header to IP layer. Chop the Ethernet header and send the rest over data.
-			retPacket = nl_handleIPv4Packet(sr, packet+sizeof(struct sr_ethernet_hdr), 
+			ipPacket = nl_handleIPv4Packet(sr, packet+sizeof(struct sr_ethernet_hdr), 
 													len-sizeof(struct sr_ethernet_hdr), interface);
-			if(retPacket != NULL) {
+			if(ipPacket != NULL) {
 				// construct the Ethernet header here
-				struct sr_ethernet_hdr* ethHdr = dl_constructEthernetHeader(sr, retPacket, interface);
-				if(ethHdr == NULL) {
+				struct packet_details* fullPacket = dl_constructEthernetPacket(sr, ipPacket, interface);
+				if(fullPacket == NULL) {
 					// This means that the ARP resolution was initiated. Hence do not do anything here.
-					// TODO.
 				} else {
-					// Call send data with packet = ethHdr + retPacket.ipHdr + retPacket.data
-					// TODO.
+					// Call send data with packet = ethHdr + retPacket->packet
+					uint8_t* packetToBeSent = fullPacket->packet;
+					unsigned int packetToBeSentLen = fullPacket->len;
+					char* interfaceToBeSentOn = fullPacket->interface;
+					
+					// Free all the objects
+					free(ipPacket);
+					free(ipPacket->packet);
+					free(fullPacket);
+					
+					// Send this constructed packet
+					sr_send_packet(sr, packetToBeSent, packetToBeSentLen, interfaceToBeSentOn);
 				}
 			}
 			break;
@@ -166,4 +210,8 @@ void sr_handlepacket(struct sr_instance* sr,
     printf("*** -> Received packet of length %d \n",len);
     dl_handlePacket(sr, packet, len, interface);
 
+	// TODO: Once the current packet is handled, check if there are any ARP-Requests in the PacketBuffer must be resent.
+	// TODO: If there are any such ones, then send and increment the counter. 
+	// TODO: Also remove the nodes whose count has reached 5 and timeout of the last ARP request has occured.
+	
 }/* end sr_ForwardPacket */
