@@ -158,7 +158,7 @@ struct sr_arphdr
 struct packet_details
 {
 #ifndef sr_IFACE_NAMELEN
-#define sr_IFACE_NAMELEN 32				/* TODO: This constant is duplicated from sr_if.h. Remove this duplication if possible!
+#define sr_IFACE_NAMELEN 32				// TODO: This constant is duplicated from sr_if.h. Remove this duplication if possible!
 #endif
     uint8_t*		packet;          	/* Packet to be returned to the above layer */
     unsigned int 	len;             	/* length of the packet   */
@@ -168,9 +168,8 @@ struct packet_details
 // Two structures for Buffering Packets while ARP resolution is being done.
 struct arp_req_details
 {
-	struct packet_details 	packetToBeSent;
-	struct packet_details 	arpRequestPacket;
-    char* 			interface;          /* interface on which the ARP Request was sent */
+	struct packet_details 	packetToBeSent; // The original IP packet i.e.. ICMP, IPv4 etc.
+	struct packet_details 	arpRequestPacket; // Here the interface field in packet_details HAVE to be assigned with the "interface" on which the ARP Request was sent
 	unsigned int 	arpReqCounter;
 	time_t			lastARPRequestSent;	/* time when the last ARP was sent */
 	struct arp_req_details* next;
@@ -178,8 +177,8 @@ struct arp_req_details
 
 struct packet_buffer
 {
-    uint32_t        dest_ip;             /* target IP address to which the packets in the buffer needs to be sent */
-	struct arp_req_details* packet_list;
+    uint32_t        destIp;             /* target IP address to which the packets in the buffer needs to be sent */
+	struct arp_req_details* packetList;
 	struct packet_buffer* next;
 } __attribute__ ((packed)) ;
 

@@ -67,15 +67,15 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
  * Returns both Gateway IP and Ethernet Interface for the given destination IP address. 
  * Fetches this information from the ROUTING TABLE.
  *---------------------------------------------------------------------*/
-void getGatewayBasedOnDestinationIP(struct sr_instance* sr, struct in_addr destIP, uint32_t* retGatewayAddr, char* retRoutingInterface) {
+void getGatewayBasedOnDestinationIP(struct sr_instance* sr, struct in_addr destIP, struct in_addr* retGatewayIPAddr, char* retRoutingInterface) {
 	struct sr_rt* tempRTptr = sr->routing_table;
 	while(tempRTptr != NULL) {
 		if(tempRTptr->dest.s_addr == 0) {	// TODO: Check if this works. Use Default Gateway if no other destination IP matches.
-			*retGatewayAddr = tempRTptr->gw.s_addr;
+			*retGatewayIPAddr = tempRTptr->gw;
 			retRoutingInterface = tempRTptr->interface;
 		}
 		if(tempRTptr->dest.s_addr == destIP.s_addr) {
-			*retGatewayAddr = tempRTptr->gw.s_addr;
+			*retGatewayIPAddr = tempRTptr->gw;
 			retRoutingInterface = tempRTptr->interface;
 			break;
 		}
@@ -130,6 +130,67 @@ void getMACAddressFromARPCache(uint32_t ipAddr, unsigned char* retMacAddr) {
 		arpCachePtr = arpCachePtr->next;
 	}
 }
+
+/*--------------------------------------------------------------------- 
+ * Method: dl_constructARP(  struct sr_instance* sr, struct in_addr ip)
+ * Scope: Local
+ * Layer: Datalink Layer
+ * 
+ * This method is called when the ARP resolution has to be done. The 
+ * destination IP, the receiving interface are passed in as parameters. 
+ * Packet returned is complete with the ethernet headers and arp headers.
+ *---------------------------------------------------------------------*/
+struct packet_details* dl_constructARP(struct sr_instance* sr, struct in_addr ip, char* routingInterface){
+	struct sr_ethernet_hdr *eth = (struct sr_ethernet_hdr *)malloc(sizeof(struct sr_ethernet_hdr));
+	struct sr_arphdr *arp = (struct sr_arphdr *)malloc(sizeof(struct sr_arphdr));
+	struct sr_if* interfaceStructure = sr_get_interface(sr, routingInterface); // Obtain all the details about this interface(IP, MAC etc)
+	
+	// Set values for Ethernet headers
+	for (int i=0;i<ETHER_ADDR_LEN;i++){ 						//48.bit: Ethernet address of destination
+		eth->ether_dhost[i]=0xFF;
+	} 
+	memcpy(eth->ether_shost, interfaceStructure->addr, ETHER_ADDR_LEN);
+	eth->ether_type=ETHERTYPE_ARP; 				// 16.bit: Protocol type
+	
+	// Set values in ARP Packet
+	arp->ar_hrd=ARPHDR_ETHER; 					//16.bit: (ar$hrd) Hardware address space
+	arp->ar_pro=ETHERTYPE_IP; 					//16.bit: (ar$pro) Protocol address space.  
+	arp->ar_hln=ETHER_ADDR_LEN; 				// 8.bit: (ar$hln) byte length of each hardware address
+	arp->ar_pln=0x04; 							// TODO: Hardcoded for now. 8.bit: (ar$pln) byte length of each protocol address
+	arp->ar_op=ARP_REQUEST;	 					// 16.bit: (ar$op)  opcode (ares_op$REQUEST | ares_op$REPLY)
+	memcpy(arp->ar_sha, interfaceStructure->addr, ETHER_ADDR_LEN); // Source Hardware Address
+	arp->ar_sip = interfaceStructure->ip;					// Source IP Address
+	for (int i=0;i<ETHER_ADDR_LEN;i++){ 					// nbytes: (ar$tha) Hardware address of target of this packet (if known).
+		arp->ar_tha[i]=0xFF;
+	} 
+	arp->ar_tip=ip.s_addr; 							// mbytes: (ar$tpa) Protocol address of target.
+	
+	// Construct a packet buffer = EthernetHeader + ArpHeader
+	struct packet_details *retPacketDetails = (struct packet_details *)malloc(sizeof(struct packet_details));
+	retPacketDetails->len = sizeof(struct sr_ethernet_hdr) + sizeof(struct sr_arphdr);
+	retPacketDetails->packet = (uint8_t *)malloc(retPacketDetails->len);
+	memcpy(retPacketDetails->packet, eth, sizeof(struct sr_ethernet_hdr)); // Ethernet Header
+	memcpy(retPacketDetails->packet+sizeof(struct sr_ethernet_hdr), arp, sizeof(struct sr_arphdr)); // ARP Header
+	strncpy(retPacketDetails->interface, routingInterface, sr_IFACE_NAMELEN);
+	
+	// Free all the memory allocations not required further
+	free(eth);
+	free(arp);
+	
+	return retPacketDetails;
+}
+/*--------------------------------------------------------------------- 
+ * Method: addToPacketBuffer
+ * Scope: Local
+ * Layer: Utility function for PACKET BUFFER
+ * 
+ * Adds the given IP Packet and corresponding ARP Request Packet to the Packet Buffer
+ *---------------------------------------------------------------------*/
+void addToPacketBuffer(struct packet_details* arpPacketDetails, 
+								struct packet_details* ipPacketDetails, uint32_t gatewayIPAddr) 
+{
+	
+}
  
  /*--------------------------------------------------------------------- 
  * Method: dl_constructEthernetHeader
@@ -145,15 +206,21 @@ struct packet_details* dl_constructEthernetPacket(struct sr_instance* sr,
 	// 1. From the routing table determine which gateway & eth interface should be used to send the packet
 	struct ip* ipHdr = (struct ip*)ipPacket;
 	struct sr_ethernet_hdr* ethHdr = NULL;
-	uint32_t gatewayAddr;
+	struct in_addr gatewayIPAddr;
 	char routingInterface[sr_IFACE_NAMELEN];
-	getGatewayBasedOnDestinationIP(sr, ipHdr->ip_dst, &gatewayAddr, routingInterface);
+	getGatewayBasedOnDestinationIP(sr, ipHdr->ip_dst, &gatewayIPAddr, routingInterface);
 	// 2. Now check if the gateway's IP is present in the ARP cache.
 	unsigned char macAddr[ETHER_ADDR_LEN] = "EMPTY";
-	getMACAddressFromARPCache(gatewayAddr, macAddr);
+	getMACAddressFromARPCache(gatewayIPAddr.s_addr, macAddr);
 	if(strncmp((char*)macAddr, "EMPTY", ETHER_ADDR_LEN) == 0) {
 		// 3.Case#1: MAC address was not found in ARP cache. So send ARP Request, add all the details to the packet buffer.
-		// TODO
+		// 3.C1.1 Send ARP request
+		struct packet_details* arpPacketDetails = dl_constructARP(sr, gatewayIPAddr, routingInterface);
+		sr_send_packet(sr, arpPacketDetails->packet, arpPacketDetails->len, arpPacketDetails->interface);
+		// 3.C1.2 Add the corresponding packet into the buffer
+		addToPacketBuffer(arpPacketDetails, ipPacket, gatewayIPAddr.s_addr); 
+		// 3.C1.3 Return NULL
+		return NULL;
 	} else {
 		// 3.Case#2: Happy scenario - MAC was found in ARP cache.
 		struct sr_ethernet_hdr tempEthHdr;
