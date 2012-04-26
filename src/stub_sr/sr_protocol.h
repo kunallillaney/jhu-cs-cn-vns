@@ -149,10 +149,13 @@ struct sr_arphdr
     uint32_t        ar_tip;             /* target IP address            */
 } __attribute__ ((packed)) ;
 
-#ifndef ARP_TIMEOUT
-#define ARP_TIMEOUT            10  /* ARP cache entry time-out value */
+#ifndef ARP_CACHE_ENTRY_TIMEOUT
+#define ARP_CACHE_ENTRY_TIMEOUT            10  /* ARP cache entry time-out value in seconds */
 #endif
 
+#ifndef ARP_REQUEST_TIMEOUT
+#define ARP_REQUEST_TIMEOUT            10  /* ARP cache entry time-out value in seconds */
+#endif
 
 // This is a structure to encapsulate packet & interface details
 struct packet_details
