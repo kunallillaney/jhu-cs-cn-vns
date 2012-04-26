@@ -157,4 +157,30 @@ struct packet_details
     char* 			interface;          /* interface if available/known - not mandatory field */
 } __attribute__ ((packed)) ;
 
+// Two structures for Buffering Packets while ARP resolution is being done.
+struct arp_req_details
+{
+	struct packet_details 	packetToBeSent;
+	struct packet_details 	arpRequestPacket;
+    char* 			interface;          /* interface on which the ARP Request was sent */
+	unsigned int 	arpReqCounter;
+	long			lastARPRequestSent;	/* time when the last ARP was sent */
+	struct arp_req_details* next;
+} __attribute__ ((packed)) ;
+
+struct packet_buffer
+{
+    uint32_t        dest_ip;             /* target IP address to which the packets in the buffer needs to be sent */
+	struct arp_req_details* packet_list;
+	struct packet_buffer* next;
+} __attribute__ ((packed)) ;
+
+// ARP Cache
+struct arp_cache
+{
+	uint32_t        ip;
+	unsigned char   mac[ETHER_ADDR_LEN];
+	long			creationTime;
+	struct arp_cache* next;
+} __attribute__ ((packed)) ;
 #endif /* -- SR_PROTOCOL_H -- */
