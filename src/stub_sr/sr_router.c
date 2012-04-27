@@ -28,6 +28,88 @@
 struct packet_buffer *_pBuf = NULL;
 struct arp_cache *_arpCache = NULL;
 
+void addIntoARPCache(uint32_t ipAddr, unsigned char* macAddr) {
+	struct arp_cache* arpCachePtr = _arpCache;
+	struct arp_cache* prevArpCachePtr = arpCachePtr;
+	
+	while(arpCachePtr != NULL) {
+		if(arpCachePtr->ip == ipAddr) {
+			strncpy((char*)arpCachePtr->mac, (char*)macAddr, ETHER_ADDR_LEN);
+		}
+		prevArpCachePtr = arpCachePtr;
+		arpCachePtr = arpCachePtr->next;
+	}
+	if(arpCachePtr == NULL) {
+		// This IP was not found in the cache. So add a new node
+		struct arp_cache* arpCacheNode = (struct arp_cache*)malloc(sizeof(struct arp_cache));
+		arpCacheNode->ip = ipAddr;
+		strncpy((char*)arpCachePtr->mac, (char*)macAddr, ETHER_ADDR_LEN);
+		arpCachePtr->next = NULL;
+		if(_arpCache == NULL) {
+			// First Node
+			_arpCache = arpCacheNode;
+		} else {
+			// Add node at the end
+			prevArpCachePtr->next = arpCacheNode;
+		}
+	}
+}
+
+void dl_local_handleARPResponse(struct sr_instance* sr, 
+        uint8_t* packet/* lent */,
+        unsigned int len,
+		char* interface) 
+{
+	struct sr_ethernet_hdr* ethHdr = (struct sr_ethernet_hdr*)packet;
+	struct sr_arphdr* arpHdr = (struct sr_arphdr*)(packet+sizeof(struct sr_ethernet_hdr));
+	
+	uint32_t ipAddr = arpHdr->ar_sip;
+	unsigned char* macAddr = arpHdr->ar_sha;
+	
+	// Populate the IP and MAC in the ARP Cache
+	addIntoARPCache(ipAddr, macAddr);
+	
+	// Iterate through the IP packet buffer list to get corresponding buffer list
+	struct packet_buffer* ipBufPtr = _pBuf;
+	struct packet_buffer* prevIPBufPtr = ipBufPtr;
+	while(ipBufPtr != NULL) {
+		if(ipBufPtr->destIp == ipAddr) {
+			struct arp_req_details* bufPtr = ipBufPtr->packetListHead;
+			while(bufPtr != NULL) {
+				// Construct EthernetHeader + IPHeader and send this packet
+				struct sr_ethernet_hdr tempEthHdr;
+				// NOTE: Here we need to use memcpy instead of strncpy because the data type for MAC addresses is different in "sr_if" and EthernetHeader structures
+				memcpy(tempEthHdr.ether_dhost, macAddr, ETHER_ADDR_LEN);
+				memcpy(tempEthHdr.ether_shost, sr_get_interface(sr, bufPtr->arpRequestPacketDetails->interface)->addr, ETHER_ADDR_LEN);
+				ethHdr->ether_type = ETHERTYPE_IP; // TODO: For now, assume that only Network Layer packets buffered!
+				
+				unsigned int fullPacketLen = sizeof(tempEthHdr) + bufPtr->ipPacketDetails->len;
+				uint8_t* fullPacket = (uint8_t*)malloc(fullPacketLen);
+				memcpy(fullPacket, &tempEthHdr, sizeof(tempEthHdr));
+				memcpy(fullPacket+sizeof(tempEthHdr), bufPtr->ipPacketDetails->packet, bufPtr->ipPacketDetails->len);
+				
+				// We can use the same interface that was used to send the ARP request.
+				sr_send_packet(sr, fullPacket, fullPacketLen, bufPtr->arpRequestPacketDetails->interface);
+				
+				// free all memory
+				free(bufPtr->ipPacketDetails->packet);
+				free(bufPtr->arpRequestPacketDetails->packet);
+				free(fullPacket);
+				
+				struct arp_req_details* tempPtr = bufPtr;
+				bufPtr = bufPtr->next;
+				free(tempPtr);
+			}
+			// Remove this IP node from the Packet buffer
+			prevIPBufPtr->next = ipBufPtr->next;
+			free(ipBufPtr);
+			break;
+		}
+		prevIPBufPtr = ipBufPtr;
+		ipBufPtr = ipBufPtr->next;
+	}
+}
+ 
 
 /*--------------------------------------------------------------------- 
  * Method: dl_handleARPPacket
@@ -36,7 +118,6 @@ struct arp_cache *_arpCache = NULL;
  * 
  * Handles all ARP packets that are recieved by this router.
  *---------------------------------------------------------------------*/
-
 struct packet_details* dl_handleARPPacket(struct sr_instance* sr,uint8_t * packet/* lent */,
         unsigned int len,char* interface) 
 {
@@ -62,16 +143,17 @@ struct packet_details* dl_handleARPPacket(struct sr_instance* sr,uint8_t * packe
 					return retPacketDetails;
 				}
 				else {
-					//addIntoARPCache(a_hdr->ar_sip,a_hdr->ar_sha);
+					addIntoARPCache(a_hdr->ar_sip,a_hdr->ar_sha);
 				}
 				break;
 			case ARP_REPLY:
+				dl_local_handleARPResponse(sr, packet, len, interface);
 				break;
 		}
 	return NULL;
 }
 
- 
+
  /*--------------------------------------------------------------------- 
  * Method: nl_handleIPv4Packet
  * Scope: Local
@@ -308,9 +390,6 @@ struct packet_details* dl_constructEthernetPacket(struct sr_instance* sr,
 	memcpy(retPacket, ethHdr, sizeof(struct sr_ethernet_hdr));
 	memcpy(retPacket + sizeof(struct sr_ethernet_hdr), ipPacket->packet, ipPacket->len);
 	
-	// Now free all the memories allocated
-	free(ethHdr);
-	
 	struct packet_details *fullPacketDetails = (struct packet_details*)malloc(sizeof(struct packet_details));
 	fullPacketDetails->packet = retPacket;
 	fullPacketDetails->len = retPacketLen;
@@ -340,7 +419,7 @@ void dl_handlePacket(struct sr_instance* sr,
 	switch(ethHdr->ether_type) {
 		case ETHERTYPE_ARP: 
 			// Pass the Ethernet header and the data part of the packet to the ARP Protocol implementor
-			arpPacket = dl_handleARPPacket(sr, packet,len , interface);
+			arpPacket = dl_handleARPPacket(sr, packet, len, interface);
 			if(arpPacket == NULL) {
 				// No job to do as the packet may not be for this router OR this may be a ARP response.
 			} else {
@@ -370,8 +449,8 @@ void dl_handlePacket(struct sr_instance* sr,
 					char* interfaceToBeSentOn = fullPacket->interface;
 					
 					// Free all the objects
-					free(ipPacket);
 					free(ipPacket->packet);
+					free(ipPacket);
 					free(fullPacket);
 					
 					// Send this constructed packet
@@ -453,4 +532,5 @@ void sr_handlepacket(struct sr_instance* sr,
 		}
 		ipBufPtr = ipBufPtr->next;
 	}
+	
 }/* end sr_ForwardPacket */
