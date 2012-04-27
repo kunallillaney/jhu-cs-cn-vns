@@ -1,0 +1,4 @@
+#!/bin/bash
+make clean
+make 
+./sr -t 959 -s vns-2.stanford.edu -u jhu_f12_444_8 -a key -l log
