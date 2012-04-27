@@ -121,9 +121,11 @@ void dl_local_handleARPResponse(struct sr_instance* sr,
 struct packet_details* dl_handleARPPacket(struct sr_instance* sr,uint8_t * packet/* lent */,
         unsigned int len,char* interface) 
 {
+		printf("inside arp\n");
 		struct sr_ethernet_hdr* e_hdr = (struct sr_ethernet_hdr*)packet;
 		struct sr_arphdr*       a_hdr = (struct sr_arphdr*)(packet + sizeof(struct sr_ethernet_hdr));
 		struct sr_if* iface = sr_get_interface(sr, interface);
+		printf("Op=%02x\n",a_hdr->ar_op);
 		switch(a_hdr->ar_op){
 			case ARP_REQUEST:
 				if ((a_hdr->ar_tip == iface->ip )) {
@@ -641,7 +643,8 @@ void dl_handlePacket(struct sr_instance* sr,
 	struct sr_ethernet_hdr *ethHdr = (struct sr_ethernet_hdr *)packet;
 	struct packet_details *arpPacket;
 	struct packet_details *ipPacket;
-	switch(ethHdr->ether_type) {
+	printf("ethertype updated=%02x", htons(ethHdr->ether_type));
+	switch(htons(ethHdr->ether_type)) {
 		case ETHERTYPE_ARP: 
 			// Pass the Ethernet header and the data part of the packet to the ARP Protocol implementor
 			arpPacket = dl_handleARPPacket(sr, packet, len, interface);
@@ -734,7 +737,7 @@ void sr_handlepacket(struct sr_instance* sr,
 
     printf("*** -> Received packet of length %d \n",len);
     dl_handlePacket(sr, packet, len, interface);
-
+	
 	// Once the current packet is handled, check if there are any ARP-Requests in the PacketBuffer must be resent.
 	// If there are any such ones, then send and increment the counter. 
 	// Also remove the nodes whose count has reached 5 and timeout of the last ARP request has occured.
@@ -758,4 +761,142 @@ void sr_handlepacket(struct sr_instance* sr,
 		ipBufPtr = ipBufPtr->next;
 	}
 	
-}/* end sr_ForwardPacket */
+}/* end sr_ForwardPacket *//*---------------------------------------------------------------------
+ * Method: void z_printARPpacket(uint8_t * packet, unsigned int len)
+ *
+ * Print an ARP packet
+ *---------------------------------------------------------------------*/
+void z_printARPpacket(uint8_t * packet, int len) {
+	printf("======== ARP packet ========\n");
+
+	/* ARP packet format
+	 *  http://tools.ietf.org/html/rfc826
+	 Ethernet transmission layer (not necessarily accessible to
+	 the user):
+	 48.bit: Ethernet address of destination
+	 48.bit: Ethernet address of sender
+	 16.bit: Protocol type = ether_type$ADDRESS_RESOLUTION
+	 Ethernet packet data:
+	 16.bit: (ar$hrd) Hardware address space (e.g., Ethernet,
+	 Packet Radio Net.)
+	 16.bit: (ar$pro) Protocol address space.  For Ethernet
+	 hardware, this is from the set of type
+	 fields ether_typ$<protocol>.
+	 8.bit: (ar$hln) byte length of each hardware address
+	 8.bit: (ar$pln) byte length of each protocol address
+	 16.bit: (ar$op)  opcode (ares_op$REQUEST | ares_op$REPLY)
+	 nbytes: (ar$sha) Hardware address of sender of this
+	 packet, n from the ar$hln field.
+	 mbytes: (ar$spa) Protocol address of sender of this
+	 packet, m from the ar$pln field.
+	 nbytes: (ar$tha) Hardware address of target of this
+	 packet (if known).
+	 mbytes: (ar$tpa) Protocol address of target.
+	 */
+
+	//48.bit: Ethernet address of destination
+	printf("Ethernet DST: ");
+	for (int i = 0; i < 6; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("\n");
+
+	// 48.bit: Ethernet address of sender
+	printf("Ethernet SRC: ");
+	for (int i = 6; i < 12; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("\n");
+
+	// 16.bit: Protocol type
+	printf("Protocal Type: ");
+	for (int i = 12; i < 14; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("\n");
+
+	//16.bit: (ar$hrd) Hardware address space (e.g., Ethernet,
+	//                 Packet Radio Net.)
+	printf("Hardware address space: ");
+	for (int i = 14; i < 16; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("\n");
+
+	//16.bit: (ar$pro) Protocol address space.  For Ethernet
+	//                 hardware, this is from the set of type
+	//                 fields ether_typ$<protocol>.
+	printf("IP address space: ");
+	for (int i = 16; i < 18; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("\n");
+
+	// 8.bit: (ar$hln) byte length of each hardware address
+	printf("byte length of each hardware address: ");
+	for (int i = 18; i < 19; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("\n");
+
+	// 8.bit: (ar$pln) byte length of each protocol address
+	printf("byte length of each IP address: ");
+	for (int i = 19; i < 20; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("\n");
+
+	// 16.bit: (ar$op)  opcode (ares_op$REQUEST | ares_op$REPLY)
+	printf("opcode (ares_op$REQUEST | ares_op$REPLY): ");
+	for (int i = 20; i < 22; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("\n");
+
+	// nbytes: (ar$sha) Hardware address of sender of this
+	//                 packet, n from the ar$hln field.
+	int arhln = 6; //TODO
+	printf("Hardware address of sender of this packet: ");
+	for (int i = 22; i < 22 + arhln; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("\n");
+
+	// mbytes: (ar$spa) Protocol address of sender of this
+	//                 packet, m from the ar$pln field.
+	int arpln = 4; //TODO
+	printf("IP address of sender of this packet: ");
+	for (int i = 22 + arhln; i < 22 + arhln + arpln; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("(");
+	for (int i = 22 + arhln; i < 22 + arhln + arpln; i++) {
+		printf("%d.", packet[i]);
+	}
+	printf(")");
+	printf("\n");
+
+	// nbytes: (ar$tha) Hardware address of target of this
+	//                 packet (if known).
+	printf("Hardware address of target of this packet: ");
+	for (int i = 22 + arhln + arpln; i < 22 + 2 * arhln + arpln; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("\n");
+
+	// mbytes: (ar$tpa) Protocol address of target.
+	printf("IP address of target of this packet: ");
+	for (int i = 22 + 2 * arhln + arpln; i < 22 + 2* arhln + 2* arpln; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("(");
+	for (int i = 22 + 2 * arhln + arpln; i < 22 + 2* arhln + 2* arpln; i++) {
+		printf("%d.", packet[i]);
+	}
+	printf(")");
+	printf("%d", 22 + 2* arhln + 2* arpln);
+	printf("\n");
+
+	printf("========  end  ========\n");
+	
+}
