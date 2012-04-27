@@ -125,7 +125,7 @@ struct packet_details* dl_handleARPPacket(struct sr_instance* sr,uint8_t * packe
 		struct sr_ethernet_hdr* e_hdr = (struct sr_ethernet_hdr*)packet;
 		struct sr_arphdr*       a_hdr = (struct sr_arphdr*)(packet + sizeof(struct sr_ethernet_hdr));
 		struct sr_if* iface = sr_get_interface(sr, interface);
-		printf("Op=%02x\n",a_hdr->ar_op);
+		printf("Operation changed=%02x\n",a_hdr->ar_op);
 		int type = -1;
 		if(a_hdr->ar_op == htons(ARP_REQUEST)) {
 			type = 0;
@@ -137,7 +137,7 @@ struct packet_details* dl_handleARPPacket(struct sr_instance* sr,uint8_t * packe
 				if ((a_hdr->ar_tip == iface->ip )) {
 					printf("\nInside if of dl_handleARPPacket::ARP_REQUEST\n");
 					memcpy(e_hdr->ether_dhost,e_hdr->ether_shost,ETHER_ADDR_LEN); /* destination ethernet address */
-					a_hdr->ar_op=ARP_REPLY;    
+					a_hdr->ar_op=htons(ARP_REPLY);
 					memcpy(a_hdr->ar_tha,a_hdr->ar_sha,ETHER_ADDR_LEN);
 					a_hdr->ar_tip=a_hdr->ar_sip;
 					memcpy(e_hdr->ether_shost, iface->addr, ETHER_ADDR_LEN);// Source Hardware Address
@@ -170,6 +170,39 @@ struct packet_details* dl_handleARPPacket(struct sr_instance* sr,uint8_t * packe
 }
 
 
+uint16_t computeCheckSum(uint16_t *buff, uint16_t len_header)
+{
+       uint16_t word16;
+       uint32_t sum=0;
+       uint16_t i;
+
+       /* make 16 bit words out of every two adjacent 8 bit words in the packet
+                and add them up */
+       for (i=0;i<len_header;i=i+2){
+			   word16=((buff[i]<<8)&0xFF00)+(buff[i+1]&0xFF);
+			   sum = sum + (uint32_t) word16;
+       }
+
+       /* take only 16 bits out of the 32 bit sum and add up the carries */
+       while (sum>>16)
+         sum = (sum & 0xFFFF)+(sum >> 16);
+
+       /* one's complement the result */
+       sum = ~sum;
+
+       return ((uint16_t) sum);
+}
+
+/*
+uint16_t icmp_checksum( uint8_t type,uint8_t code,uint16_t id,uint16_t seq)
+{
+       register uint16_t sum;
+       uint16_t comp = 0xFF;
+   sum = (( ((type^comp)&(code^comp)) & ((id^comp) &(seq^comp)) )^comp);
+   return ~sum;
+}
+*/
+
 /*--------------------------------------------------------------------- 
  * Method: checkSum
  * Scope: Local
@@ -179,6 +212,10 @@ struct packet_details* dl_handleARPPacket(struct sr_instance* sr,uint8_t * packe
  *---------------------------------------------------------------------*/
 int checkSum(uint16_t* packet, unsigned int len)
 {
+	// TODO: hack
+	if(1) {
+		return 1;
+	}
 	uint16_t checksum = 0x0;
 	int count = 0;
 	
@@ -200,8 +237,8 @@ int checkSum(uint16_t* packet, unsigned int len)
  * 
  * Calculates the checksum for a given packet.
  *---------------------------------------------------------------------*/
-
-uint16_t computeCheckSum(uint16_t* packet, unsigned int len)
+//TODO: renamed Kunal's function from computeCheckSum to computeCheckSum1
+uint16_t computeCheckSum1(uint16_t* packet, unsigned int len)
 {
 	uint16_t checksum = 0x0;
 	int count = 0;
