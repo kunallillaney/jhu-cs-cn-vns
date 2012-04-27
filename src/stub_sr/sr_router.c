@@ -28,6 +28,7 @@
 struct packet_buffer *_pBuf = NULL;
 struct arp_cache *_arpCache = NULL;
 
+
 /*--------------------------------------------------------------------- 
  * Method: dl_handleARPPacket
  * Scope: Local
@@ -35,14 +36,40 @@ struct arp_cache *_arpCache = NULL;
  * 
  * Handles all ARP packets that are recieved by this router.
  *---------------------------------------------------------------------*/
-struct packet_details* dl_handleARPPacket(struct sr_instance* sr, struct sr_ethernet_hdr *ethHdr,
-        uint8_t *arpHeader/* lent */,
-        unsigned int arpHeaderLen, char* interface) 
-{
-	// TODO: Check ethHdr->ether_type and perform request and response handling here.
-	
-}
 
+struct packet_details* dl_handleARPPacket(struct sr_instance* sr,uint8_t * packet/* lent */,
+        unsigned int len,char* interface) 
+{
+		struct sr_ethernet_hdr* e_hdr = (struct sr_ethernet_hdr*)packet;
+		struct sr_arphdr*       a_hdr = (struct sr_arphdr*)(packet + sizeof(struct sr_ethernet_hdr));
+		struct sr_if* iface = sr_get_interface(sr, interface);
+		switch(a_hdr->ar_op){
+			case ARP_REQUEST:
+				if ((a_hdr->ar_tip == iface->ip )) {
+					memcpy(e_hdr->ether_dhost,e_hdr->ether_shost,ETHER_ADDR_LEN); /* destination ethernet address */
+					a_hdr->ar_op=ARP_REPLY;    
+					memcpy(a_hdr->ar_tha,a_hdr->ar_sha,ETHER_ADDR_LEN);
+					a_hdr->ar_tip=a_hdr->ar_sip;
+					memcpy(e_hdr->ether_shost, iface->addr, ETHER_ADDR_LEN);// Source Hardware Address
+					a_hdr->ar_sip=iface->ip; 
+					// Construct a packet buffer = EthernetHeader + ArpHeader
+					struct packet_details *retPacketDetails = (struct packet_details *)malloc(sizeof(struct packet_details));
+					retPacketDetails->len = sizeof(struct sr_ethernet_hdr) + sizeof(struct sr_arphdr);
+					retPacketDetails->packet = (uint8_t *)malloc(retPacketDetails->len);
+					memcpy(retPacketDetails->packet, e_hdr, sizeof(struct sr_ethernet_hdr)); // Ethernet Header
+					memcpy(retPacketDetails->packet+sizeof(struct sr_ethernet_hdr), a_hdr, sizeof(struct sr_arphdr)); // ARP Header
+					
+					return retPacketDetails;
+				}
+				else {
+					//addIntoARPCache(a_hdr->ar_sip,a_hdr->ar_sha);
+				}
+				break;
+			case ARP_REPLY:
+				break;
+		}
+	return NULL;
+}
 
  
  /*--------------------------------------------------------------------- 
@@ -313,8 +340,7 @@ void dl_handlePacket(struct sr_instance* sr,
 	switch(ethHdr->ether_type) {
 		case ETHERTYPE_ARP: 
 			// Pass the Ethernet header and the data part of the packet to the ARP Protocol implementor
-			arpPacket = dl_handleARPPacket(sr, ethHdr, 
-									packet+sizeof(struct sr_ethernet_hdr), len-sizeof(struct sr_ethernet_hdr), interface);
+			arpPacket = dl_handleARPPacket(sr, packet,len , interface);
 			if(arpPacket == NULL) {
 				// No job to do as the packet may not be for this router OR this may be a ARP response.
 			} else {
@@ -427,5 +453,4 @@ void sr_handlepacket(struct sr_instance* sr,
 		}
 		ipBufPtr = ipBufPtr->next;
 	}
-	
 }/* end sr_ForwardPacket */
