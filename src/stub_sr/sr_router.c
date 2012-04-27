@@ -373,9 +373,6 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
 		
 	}
 	
-	/* setting ip packet*/
-	srcIp->ip_ttl = srcIp->ip_ttl - 0x01; 
-	
 	/* checking for icmp ping */
 	inSrif = sr_get_interface(sr, interface);
 	if(srcIp->ip_p == 0x01 && srcIp->ip_dst.s_addr == inSrif->ip)
@@ -398,6 +395,20 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
 		srcIcmp->icmp_sum = 0x0;
 		srcIcmp->icmp_sum = computeCheckSum((uint16_t*)srcIcmp, sizeof(struct icmp));
 		
+		/* setting src and dst address*/
+		tempAddr = srcIp->ip_dst;
+		srcIp->ip_dst = srcIp->ip_src;
+		srcIp->ip_src = tempAddr;
+		
+		/* computing ip checksum */
+		srcIp->ip_sum = 0x0;
+		srcIp->ip_sum = computeCheckSum((uint16_t*)ipPacket, sizeof(struct ip));
+	
+		packDets->packet = ipPacket;
+		packDets->len = ipPacketLen;
+	
+		return packDets;
+		
 	}
 	
 	/* checking for ICMP port unreachable*/
@@ -415,8 +426,8 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
 			icmpTime->icmp_ipdata = tempData;
 		
 			/* computing icmp checksum */
-			srcIcmp->icmp_sum = 0x0;
-			srcIcmp->icmp_sum = computeCheckSum((uint16_t*)srcIcmp, sizeof(struct icmp));
+			icmpTime->icmp_sum = 0x0;
+			icmpTime->icmp_sum = computeCheckSum((uint16_t*)icmpTime, sizeof(struct icmp));
 		
 			/* setting src and dst address*/
 			tempAddr = srcIp->ip_dst;
@@ -431,14 +442,13 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
 			return packDets;
 		
 	}
-	/* setting src and dst address*/
-	tempAddr = srcIp->ip_dst;
-	srcIp->ip_dst = srcIp->ip_src;
-	srcIp->ip_src = tempAddr;	
-	
+		
 	/* computing ip checksum */
 	srcIp->ip_sum = 0x0;
 	srcIp->ip_sum = computeCheckSum((uint16_t*)ipPacket, sizeof(struct ip));
+	
+	/* setting ip packet*/
+	srcIp->ip_ttl = srcIp->ip_ttl - 0x01; 
 	
 	packDets->packet = ipPacket;
 	packDets->len = ipPacketLen;
