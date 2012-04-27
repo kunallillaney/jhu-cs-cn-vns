@@ -168,6 +168,29 @@ struct packet_details
     char 			interface[sr_IFACE_NAMELEN];          /* interface if available/known - not mandatory field */
 } __attribute__ ((packed)) ;
 
+// ICMP packet structure
+struct icmp
+{
+	uint8_t icmp_type;	/* type */
+	uint8_t icmp_code;	/* code */
+	uint16_t icmp_sum;	/* checksum */
+	uint16_t icmp_id;	/* identifier */
+	uint16_t icmp_seqno;	/* sequence number */
+
+}__attribute__ ((packed));
+
+// ICMP time exceeded structure
+struct icmp_time_exceeded
+{
+	uint8_t icmp_type;	/* type */
+	uint8_t icmp_code;	/* code */
+	uint16_t icmp_sum;	/* checksum */
+	uint32_t icmp_unused; 	/* unused */
+	struct ip icmp_ip;		/* ip header */
+	uint64_t icmp_ipdata; 	/* 8 bytes of orginal datagram */
+}__attribute__ ((packed));
+
+
 // Two structures for Buffering Packets while ARP resolution is being done.
 struct arp_req_details
 {
