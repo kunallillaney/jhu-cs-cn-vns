@@ -126,14 +126,28 @@ struct packet_details* dl_handleARPPacket(struct sr_instance* sr,uint8_t * packe
 		struct sr_arphdr*       a_hdr = (struct sr_arphdr*)(packet + sizeof(struct sr_ethernet_hdr));
 		struct sr_if* iface = sr_get_interface(sr, interface);
 		printf("Op=%02x\n",a_hdr->ar_op);
-		switch(a_hdr->ar_op){
-			case ARP_REQUEST:
+		int type = -1;
+		if(a_hdr->ar_op == htons(ARP_REQUEST)) {
+			type = 0;
+		} else if(a_hdr->ar_op == htons(ARP_REPLY)) {
+			type = 1;
+		}
+		switch(type){
+			case 0:
 				if ((a_hdr->ar_tip == iface->ip )) {
+					printf("\nInside if of dl_handleARPPacket::ARP_REQUEST\n");
 					memcpy(e_hdr->ether_dhost,e_hdr->ether_shost,ETHER_ADDR_LEN); /* destination ethernet address */
 					a_hdr->ar_op=ARP_REPLY;    
 					memcpy(a_hdr->ar_tha,a_hdr->ar_sha,ETHER_ADDR_LEN);
 					a_hdr->ar_tip=a_hdr->ar_sip;
 					memcpy(e_hdr->ether_shost, iface->addr, ETHER_ADDR_LEN);// Source Hardware Address
+					memcpy(a_hdr->ar_sha, iface->addr, ETHER_ADDR_LEN);// Source Hardware Address
+					printf("Interface MAC address =  [%s]",iface->addr);
+					for (int i = 0; i < 6; i++) {
+						printf("%02X ", iface->addr[i]);
+					}
+					printf("\n");
+					
 					a_hdr->ar_sip=iface->ip; 
 					// Construct a packet buffer = EthernetHeader + ArpHeader
 					struct packet_details *retPacketDetails = (struct packet_details *)malloc(sizeof(struct packet_details));
@@ -148,7 +162,7 @@ struct packet_details* dl_handleARPPacket(struct sr_instance* sr,uint8_t * packe
 					addIntoARPCache(a_hdr->ar_sip,a_hdr->ar_sha);
 				}
 				break;
-			case ARP_REPLY:
+			case 1:
 				dl_local_handleARPResponse(sr, packet, len, interface);
 				break;
 		}
@@ -643,25 +657,37 @@ void dl_handlePacket(struct sr_instance* sr,
 	struct sr_ethernet_hdr *ethHdr = (struct sr_ethernet_hdr *)packet;
 	struct packet_details *arpPacket;
 	struct packet_details *ipPacket;
-	printf("ethertype updated=%02x", htons(ethHdr->ether_type));
-	switch(htons(ethHdr->ether_type)) {
-		case ETHERTYPE_ARP: 
+	int type = -1;
+	if(ethHdr->ether_type == htons(ETHERTYPE_ARP)) {
+		type = 0;
+	} else if(ethHdr->ether_type == htons(ETHERTYPE_IP)) {
+		type = 1;
+	}
+	switch(type) {
+		case 0:
+			printf("\nARP Request recieved\n");
 			// Pass the Ethernet header and the data part of the packet to the ARP Protocol implementor
+			z_printARPpacket(packet, len);
 			arpPacket = dl_handleARPPacket(sr, packet, len, interface);
 			if(arpPacket == NULL) {
 				// No job to do as the packet may not be for this router OR this may be a ARP response.
+				printf("\n dl_handleARPPacket returned NULL\n");
 			} else {
 				// Send this packet over the interface same as that of the one from which the router recieved this (interface variable)
+				printf("\n dl_handleARPPacket returned not NULL\n");
 				uint8_t* packetToBeSent = arpPacket->packet;
 				unsigned int packetToBeSentLen = arpPacket->len;
 				
 				// Free all the objects
 				free(arpPacket);
 				
+				printf("\n packetToBeSentLen=%d\n", packetToBeSentLen);
 				sr_send_packet(sr, packetToBeSent, packetToBeSentLen, interface);
+				printf("\n packet sent \n");
+				z_printARPpacket(packetToBeSent, packetToBeSentLen);
 			}
 			break;
-		case ETHERTYPE_IP:
+		case 1:
 			// Do not send the Ethernet header to IP layer. Chop the Ethernet header and send the rest over data.
 			ipPacket = nl_handleIPv4Packet(sr, packet+sizeof(struct sr_ethernet_hdr), 
 													len-sizeof(struct sr_ethernet_hdr), interface);
@@ -736,6 +762,17 @@ void sr_handlepacket(struct sr_instance* sr,
     assert(interface);
 
     printf("*** -> Received packet of length %d \n",len);
+    
+    struct sr_ethernet_hdr* ethHdr = (struct sr_ethernet_hdr*)packet;
+	if(ethHdr->ether_type == htons(ETHERTYPE_ARP)) {
+		printf("ETHERTYPE_ARP recieved");
+	} else if(ethHdr->ether_type == htons(ETHERTYPE_IP)) {
+		printf("ETHERTYPE_IP recieved");
+	} else {
+		printf("Something else recieved~!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+	}
+    
+    
     dl_handlePacket(sr, packet, len, interface);
 	
 	// Once the current packet is handled, check if there are any ARP-Requests in the PacketBuffer must be resent.
