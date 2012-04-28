@@ -247,23 +247,24 @@ void connection_refused(struct tuple* tr, uint8_t* packet, unsigned ipLen)
 
 int check_exception(struct tuple* tr)
 {
-    struct rule_table rule_table_walker = firewall_instance->head_rule_table;
-    struct rule_table *rule_table_walker = (struct rule_table *)malloc(sizeof(struct rule_table));
-    while(rule_table_walker->next)
+    struct rule_table* rule_table_walker = firewall_instance->head_rule_table;
+    while(rule_table_walker)
     {
         if((rule_table_walker->ruleEntry->dst_ip.s_addr==tr->dst_ip.s_addr) && (rule_table_walker->ruleEntry->src_ip.s_addr==tr->src_ip.s_addr)
                 && (rule_table_walker->ruleEntry->protocol==tr->protocol)){
             if(tr->protocol!=0x6 && tr->protocol!=0x17){
                 return 1;
             }
-        else {
-             if((rule_table_walker->ruleEntry->dst_port!=tr->dst_port)||(rule_table_walker->ruleEntry->src_port!=tr->src_port)){
+        else 
+        {
+             if((rule_table_walker->ruleEntry->dst_port==tr->dst_port)&&(rule_table_walker->ruleEntry->src_port==tr->src_port))
                 return 1;
-                }
-             }
-        }
-       else return 0;
+         }
+            
      }
+       rule_table_walker = rule_table_walker->next;
+}/* end of method */
+    return 0;
    }   
            
 } /* end of check_exception */
@@ -325,33 +326,8 @@ return ip;
  *
  *---------------------------------------------------------------------*/
 
-void check_interface(struct sr_instance *sr,struct in_addr ip_addr)
+int check_interface(char* interface_name)
 {
-    char * shost_chr=get_hardware_address(struct sr_instance* sr, struct in_addr ip_addr);
-    if((memcmp(shost_chr,ETH0,ETHER_ADDR_LEN)==1)){/////////////////add macro
-        return 1;
-    }
-    else 
-        return 0;
+   
 }/* end of check_interface*/
 
-
-char *get_hardware_address(struct sr_instance* sr, struct in_addr ip_addr)
-{
-        char *hrd_addr;
-        hrd_addr = (char *)malloc(sr_IFACE_NAMELEN*sizeof(char));
-        struct sr_rt *rt_walker = sr->routing_table;
-        while(rt_walker->next)
-        {
-                if(ip_addr.s_addr == (rt_walker->dest).s_addr)
-                {
-                        int i;
-                        for(i = 0; i < sr_IFACE_NAMELEN; i++)
-                        {
-                                *(hrd_addr + i) = rt_walker->interface[i];
-                        }
-                }
-                rt_walker = rt_walker->next;
-        }
-        return hrd_addr;
-}
