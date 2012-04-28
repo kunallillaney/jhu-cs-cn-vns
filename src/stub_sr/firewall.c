@@ -265,9 +265,7 @@ int check_exception(struct tuple* tr)
        rule_table_walker = rule_table_walker->next;
 }/* end of method */
     return 0;
-   }   
-           
-} /* end of check_exception */
+   }/* end of check_exception */
 
 /*--------------------------------------------------------------------- 
  * Method: populate_rule_table
