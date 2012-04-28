@@ -22,11 +22,11 @@
 
 struct tuple
 {
-    in_addr srcAddr;    //Source Address
-    in_addr dstAddr;    //Destination Address
+    in_addr src_ip;     //Source Address
+    in_addr dst_ip;     //Destination Address
     uint8_t protocol;   //Protocol
-    int srcPort;        // Source Port
-    int dstPort;        // Destination Port 
+    int src_port;       // Source Port
+    int dst_port;       // Destination Port 
 };
 
 //Methods for tuple
