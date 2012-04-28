@@ -2,7 +2,6 @@
  * file:  firewall.c
  *
  * Description:
- *
  * Data structures and methods for handling firewall
  *
  *---------------------------------------------------------------------------*/
@@ -23,6 +22,7 @@
 #include <arpa/inet.h>
 
 #include "firewall.h"
+#include "sr_protocol.h"
 
 /*--------------------------------------------------------------------- 
  * Method: construct_tuple
@@ -34,6 +34,13 @@
 
 void construct_tuple(tuple* tr, uint8_t* packet)
 {
+    struct ip* ip_packet = packet;
+    tr->src_ip = ip_packet->ip_src;
+    tr->dst_ip = ip_packet->ip_dst;
+    tr->protocol = ip_packet->ip_p;
+    struct transport_layer transport_packet = packet + sizeof(struct ip);
+    tr->src_port = transport_packet->src_port;
+    tr->dst_port = transport_packet->dst_port;
     
 }/* end of construct_tuple */
 
