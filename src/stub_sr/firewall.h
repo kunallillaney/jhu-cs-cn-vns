@@ -28,6 +28,10 @@
 #define FIREWALL_ENABLED 1
 #endif
 
+#ifndef INIT
+#define INIT 1
+#endif
+
 struct firewall* firewall_instance;
 
 struct tuple
@@ -78,4 +82,5 @@ struct firewall
 struct rule_table* populate_rule_table(); //Populate rule table
 struct packet_details* intiate_firewall(uint8_t *ipPacket,unsigned int ipPacketLen, char* interface, int* status);
 int check_interface(char* interface_name);
+void init();
 #endif /* --  sr_FIREWALL_H -- */
