@@ -193,6 +193,34 @@ uint16_t computeCheckSum(uint16_t *buff, uint16_t len_header)
        return ((uint16_t) sum);
 }
 
+uint16_t verifyCheckSum(uint16_t *buff, uint16_t len_header, uint16_t testSum)
+{
+       uint16_t word16;
+       uint32_t sum=0;
+       uint16_t i;
+
+       /* make 16 bit words out of every two adjacent 8 bit words in the packet
+                and add them up */
+       for (i=0;i<len_header;i=i+2){
+			   word16=((buff[i]<<8)&0xFF00)+(buff[i+1]&0xFF);
+			   sum = sum + (uint32_t) word16;
+       }
+
+       /* take only 16 bits out of the 32 bit sum and add up the carries */
+       while (sum>>16)
+         sum = (sum & 0xFFFF)+(sum >> 16);
+
+       /* one's complement the result */
+       sum = ~sum;
+       
+       if(testSum == (uint16_t)sum)
+			return 1;
+		else 
+			return 0;
+
+}
+
+
 /*
 uint16_t icmp_checksum( uint8_t type,uint8_t code,uint16_t id,uint16_t seq)
 {
@@ -324,52 +352,64 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
 	struct icmp* srcIcmp;
 	struct icmp_time_exceeded* icmpTime;
 	uint64_t tempData;
+	uint32_t testSum;
 	packDets = malloc(sizeof(struct packet_details));
 	
 	/* getting IP Packet */
 	srcIp = (struct ip*) ipPacket;
 
 	/* checking ip checksum */
-	if(checkSum((uint16_t*)ipPacket, sizeof(struct ip)) == 0)
+	testSum = srcIp->ip_sum;
+	srcIp->ip_sum = 0x00;
+	if(verifyCheckSum((uint16_t*)ipPacket, sizeof(struct ip), testSum) == 0)
 	{
 		printf("INFO : Dropping Packet for wrong checksum in IP");
 		return NULL;
 	}
 	
 	/* checking ip ttl */
-	if(srcIp->ip_ttl == 0x0)
+	if((srcIp->ip_ttl == 0x0) || (sr_check_self(sr, srcIp->ip_dst.s_addr)==1))
 	{
-		/* checking for packets with no icmp*/
-		if(srcIp->ip_p!=0x01)
-		{
-			printf("INFO : Dropping Packet  for ttl=0 in IP");
+		printf("INFO : Dropping Packet  for ttl=0 in IP");
 			
+		icmpTime = (struct icmp_time_exceeded*)(ipPacket + sizeof(struct ip));
+		memcpy(&tempData, icmpTime, sizeof(uint64_t));
 		
-			icmpTime = (struct icmp_time_exceeded*)(ipPacket + sizeof(struct ip));
-			memcpy(&tempData, icmpTime, sizeof(uint64_t));
+		/* checking for packets with no icmp*/
+		if(srcIp->ip_ttl == 0x00)
+		{
 			icmpTime->icmp_type = 0x11;
 			icmpTime->icmp_code = 0x0;
-			icmpTime->icmp_unused = 0x0;
-			icmpTime->icmp_ip = *srcIp;
-			icmpTime->icmp_ipdata = tempData;
+		}
 		
-			/* computing icmp checksum */
-			icmpTime->icmp_sum = 0x0;
-			icmpTime->icmp_sum = computeCheckSum((uint16_t*)icmpTime, sizeof(struct icmp));
-		
-			/* setting src and dst address*/
-			tempAddr = srcIp->ip_dst;
-			srcIp->ip_dst = srcIp->ip_src;
-			srcIp->ip_src = tempAddr;
-		
-			/* computing ip checksum */
-			srcIp->ip_sum = 0x0;
-			srcIp->ip_sum = computeCheckSum((uint16_t*)ipPacket, sizeof(struct ip));
-			packDets->packet = ipPacket;	
-			packDets->len = sizeof(struct ip) + sizeof(struct icmp_time_exceeded);
-			return packDets;
+		if(sr_check_self(sr, srcIp->ip_dst.s_addr)==1)
+		{
+			icmpTime->icmp_type = 0x03;
+			icmpTime->icmp_code = 0x03;
 			
 		}
+		
+		icmpTime->icmp_unused = 0x0;
+		icmpTime->icmp_ip = *srcIp;
+		icmpTime->icmp_ipdata = tempData;
+		
+		/* computing icmp checksum */
+		icmpTime->icmp_sum = 0x0;
+		icmpTime->icmp_sum = computeCheckSum((uint16_t*)icmpTime, sizeof(struct icmp));
+		
+		/* setting src and dst address*/
+		tempAddr = srcIp->ip_dst;
+		srcIp->ip_dst = srcIp->ip_src;
+		srcIp->ip_src = tempAddr;
+		
+		/* computing ip checksum */
+		srcIp->ip_sum = 0x0;
+		srcIp->ip_sum = computeCheckSum((uint16_t*)ipPacket, sizeof(struct ip));
+		packDets->packet = ipPacket;	
+		packDets->len = sizeof(struct ip) + sizeof(struct icmp_time_exceeded);
+		return packDets;
+			
+		
 		
 	}
 	
@@ -381,7 +421,9 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
 		srcIcmp = (struct icmp*)(ipPacket + sizeof(struct ip));
 	
 		/* checking ICMP checksum */
-		if(checkSum((uint16_t*)srcIcmp, sizeof(struct icmp)) == 0)
+		testSum = srcIcmp->icmp_sum;
+		srcIcmp->icmp_sum = 0x00;
+		if(verifyCheckSum((uint16_t*)srcIcmp, sizeof(struct icmp), testSum) == 0)
 		{
 			printf("INFO : Dropping Packet for wrong checksum in ICMP");
 			return NULL;
@@ -411,37 +453,7 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
 		
 	}
 	
-	/* checking for ICMP port unreachable*/
-	if(sr_check_self(sr, srcIp->ip_dst.s_addr)==1)
-	//compare destination address of the incoming packet with the adresses of interfaces/
-	{
-		printf("INFO : Port unreachable");
-		
-			icmpTime = (struct icmp_time_exceeded*)(ipPacket + sizeof(struct ip));
-			memcpy(&tempData, icmpTime, sizeof(uint64_t));
-			icmpTime->icmp_type = 0x03;
-			icmpTime->icmp_code = 0x03;
-			icmpTime->icmp_unused = 0x0;
-			icmpTime->icmp_ip = *srcIp;
-			icmpTime->icmp_ipdata = tempData;
-		
-			/* computing icmp checksum */
-			icmpTime->icmp_sum = 0x0;
-			icmpTime->icmp_sum = computeCheckSum((uint16_t*)icmpTime, sizeof(struct icmp));
-		
-			/* setting src and dst address*/
-			tempAddr = srcIp->ip_dst;
-			srcIp->ip_dst = srcIp->ip_src;
-			srcIp->ip_src = tempAddr;
-		
-			/* computing ip checksum */
-			srcIp->ip_sum = 0x0;
-			srcIp->ip_sum = computeCheckSum((uint16_t*)ipPacket, sizeof(struct ip));
-			packDets->packet = ipPacket;
-			packDets->len = sizeof(struct ip) + sizeof(struct icmp_time_exceeded);
-			return packDets;
-		
-	}
+	//All normal Cases
 		
 	/* computing ip checksum */
 	srcIp->ip_sum = 0x0;
