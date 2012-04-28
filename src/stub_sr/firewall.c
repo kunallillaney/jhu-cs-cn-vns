@@ -122,6 +122,7 @@ void connection_refused(struct tuple* tr, uint8_t* packet, unsigned ipLen)
 int check_exception(struct tuple* tr)
 {
     struct rule_table rule_table_walker = firewall_instance->head_rule_table;
+    struct rule_table *rule_table_walker = (struct rule_table *)malloc(sizeof(struct rule_table));
     while(rule_table_walker->next)
     {
         if((rule_table_walker->ruleEntry->dst_ip.s_addr==tr->dst_ip.s_addr) && (rule_table_walker->ruleEntry->src_ip.s_addr==tr->src_ip.s_addr)
@@ -139,7 +140,7 @@ int check_exception(struct tuple* tr)
      }
    }   
            
-}/* end of check_exception */
+} /* end of check_exception */
 
 /*--------------------------------------------------------------------- 
  * Method: populate_rule_table
@@ -189,3 +190,42 @@ while(fgets(linebuffer, 40, file)){
     }
 return ip;    
 }/* end of populate_rule_table */
+
+/*--------------------------------------------------------------------- 
+ * Method: check_interface
+ * Scope: Global
+ * 
+ * Check for the interface. If external, then return true.
+ *
+ *---------------------------------------------------------------------*/
+
+void check_interface(struct sr_instance *sr,struct in_addr ip_addr)
+{
+    char * shost_chr=get_hardware_address(struct sr_instance* sr, struct in_addr ip_addr);
+    if((memcmp(shost_chr,ETH0,ETHER_ADDR_LEN)==1)){/////////////////add macro
+        return 1;
+    }
+    else 
+        return 0;
+}/* end of check_interface*/
+
+
+char *get_hardware_address(struct sr_instance* sr, struct in_addr ip_addr)
+{
+        char *hrd_addr;
+        hrd_addr = (char *)malloc(sr_IFACE_NAMELEN*sizeof(char));
+        struct sr_rt *rt_walker = sr->routing_table;
+        while(rt_walker->next)
+        {
+                if(ip_addr.s_addr == (rt_walker->dest).s_addr)
+                {
+                        int i;
+                        for(i = 0; i < sr_IFACE_NAMELEN; i++)
+                        {
+                                *(hrd_addr + i) = rt_walker->interface[i];
+                        }
+                }
+                rt_walker = rt_walker->next;
+        }
+        return hrd_addr;
+}
