@@ -489,12 +489,14 @@ void addIntoARPCache(uint32_t ipAddr, unsigned char* macAddr) {
 	while(arpCachePtr != NULL) {
 		if(arpCachePtr->ip == ipAddr) {
 			memcpy(arpCachePtr->mac, macAddr, ETHER_ADDR_LEN);
+                        arpCachePtr->creationTime = getCurrentTimeInSeconds();
+                        break;
 		}
 		prevArpCachePtr = arpCachePtr;
 		arpCachePtr = arpCachePtr->next;
 	}
 	if(arpCachePtr == NULL) {
-		// This IP was not found in the cache. So add a new node
+		// This IP was not found in the cache OR the cache is empty!. So add a new node
 		struct arp_cache* arpCacheNode = (struct arp_cache*)malloc(sizeof(struct arp_cache));
 		arpCacheNode->ip = ipAddr;
 		memcpy(arpCacheNode->mac, macAddr, ETHER_ADDR_LEN);
@@ -517,7 +519,7 @@ void dl_local_handleARPResponse(struct sr_instance* sr,
 {
         
         
-        struct sr_ethernet_hdr* ethHdr = (struct sr_ethernet_hdr*)packet;
+        //struct sr_ethernet_hdr* ethHdr = (struct sr_ethernet_hdr*)packet;
 	struct sr_arphdr* arpHdr = (struct sr_arphdr*)(packet+sizeof(struct sr_ethernet_hdr));
 	
 	uint32_t ipAddr = arpHdr->ar_sip;
@@ -538,7 +540,7 @@ void dl_local_handleARPResponse(struct sr_instance* sr,
 				// NOTE: Here we need to use memcpy instead of strncpy because the data type for MAC addresses is different in "sr_if" and EthernetHeader structures
 				memcpy(tempEthHdr.ether_dhost, macAddr, ETHER_ADDR_LEN);
 				memcpy(tempEthHdr.ether_shost, sr_get_interface(sr, bufPtr->arpRequestPacketDetails->interface)->addr, ETHER_ADDR_LEN);
-				ethHdr->ether_type = htons(ETHERTYPE_IP); // TODO: For now, assume that only Network Layer packets buffered!
+				tempEthHdr.ether_type = htons(ETHERTYPE_IP); // TODO: For now, assume that only Network Layer packets buffered!
 				
 				unsigned int fullPacketLen = sizeof(struct sr_ethernet_hdr) + bufPtr->ipPacketDetails->len;
 				uint8_t* fullPacket = (uint8_t*)malloc(fullPacketLen);
@@ -546,24 +548,29 @@ void dl_local_handleARPResponse(struct sr_instance* sr,
 				memcpy(fullPacket+sizeof(struct sr_ethernet_hdr), bufPtr->ipPacketDetails->packet, bufPtr->ipPacketDetails->len);
 				
 				// We can use the same interface that was used to send the ARP request.
-                                printf("\nFROM BUFFER(plus EthHdr), SENDING ICMP(mostly) REQUEST/RESPONSE FOR OTHERS\n");
+                                printf("\nFROM BUFFER(plus EthHdr), SENDING ICMP(mostly)(on %s) REQUEST/RESPONSE FOR OTHERS\n", bufPtr->arpRequestPacketDetails->interface);
                                 z_printEthernetHeader(fullPacket);
                                 z_printICMPpacket(bufPtr->ipPacketDetails->packet, bufPtr->ipPacketDetails->len);
                                 
                                 sr_send_packet(sr, fullPacket, fullPacketLen, bufPtr->arpRequestPacketDetails->interface);
 				
 				// free all memory
-				//free(bufPtr->ipPacketDetails->packet);
-				//free(bufPtr->arpRequestPacketDetails->packet);
-				//free(fullPacket);
-				
-				struct arp_req_details* tempPtr = bufPtr;
+                                struct arp_req_details* freeMeBufPtr = bufPtr;
 				bufPtr = bufPtr->next;
-				//free(tempPtr);
+				free(freeMeBufPtr->ipPacketDetails->packet);
+				free(freeMeBufPtr->arpRequestPacketDetails->packet);
+				free(freeMeBufPtr);
+                                free(fullPacket);
 			}
 			// Remove this IP node from the Packet buffer
 			prevIPBufPtr->next = ipBufPtr->next;
-			//free(ipBufPtr);
+                        if(ipBufPtr == prevIPBufPtr) {
+                            // This means that this the first node must be removed
+                            // struct packet_buffer* freeMeBufPtr = _pBuf;
+                            struct packet_buffer* freeMeBufPtr = _pBuf;
+                            _pBuf = _pBuf->next;
+                            free(freeMeBufPtr);
+                        }
 			break;
 		}
 		prevIPBufPtr = ipBufPtr;
@@ -753,7 +760,7 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
 	if((srcIp->ip_ttl == 0x0) || 
                 (srcIp->ip_dst.s_addr != interfaceStructure->ip && (sr_check_self(sr, srcIp->ip_dst.s_addr)==1)))
 	{
-		printf("\nINFO : Dropping Packet  for ttl=0 in IP");
+		printf("\nINFO : Common Dropping Packet either for ttl=0 or packet destination is one of the other interfaces.\n");
 			
 		icmpTime = (struct icmp_time_exceeded*)(ipPacket + sizeof(struct ip));
 		memcpy(&tempData, icmpTime, sizeof(uint64_t));
@@ -761,6 +768,7 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
 		/* checking for packets with no icmp*/
 		if(srcIp->ip_ttl == 0x00)
 		{
+                        printf("\nINFO : Dropping Packet  for ttl=0 in IP");
 			icmpTime->icmp_type = 0x11;
 			icmpTime->icmp_code = 0x0;
 		}
@@ -786,7 +794,7 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
 		srcIp->ip_src = tempAddr;
                 
         /* Setting ttl field to 256*/
-        srcIp->ip_ttl = 0xFF;
+        srcIp->ip_ttl = 0x40;
 		
 		/* computing ip checksum */
 		srcIp->ip_sum = 0x0;
@@ -848,12 +856,12 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
         z_printICMPpacket(ipPacket, ipPacketLen);	
 	
 	/* setting ip packet*/
-	//srcIp->ip_ttl = srcIp->ip_ttl - 0x01; 
+	srcIp->ip_ttl = srcIp->ip_ttl - 0x01; 
 			
 	/* computing ip checksum */
-	//srcIp->ip_sum = 0x0;
-	//srcIp->ip_sum = computeCheckSum((uint8_t*)ipPacket, sizeof(struct ip));
-	srcIp->ip_sum = testSum;
+	srcIp->ip_sum = 0x0;
+	srcIp->ip_sum = computeCheckSum((uint8_t*)ipPacket, sizeof(struct ip));
+	//srcIp->ip_sum = testSum;
         
 	packDets->packet = ipPacket;
 	packDets->len = ipPacketLen;
@@ -921,8 +929,8 @@ void getMACAddressFromARPCache(uint32_t ipAddr, unsigned char* retMacAddr) {
 				removeArpEntry(arpCachePtr, prevArpCachePtr);
 			} else {
 				memcpy(retMacAddr, arpCachePtr->mac, ETHER_ADDR_LEN);
-                                break;
 			}
+                        break;
 		}
 		prevArpCachePtr = arpCachePtr;
 		arpCachePtr = arpCachePtr->next;
@@ -1243,22 +1251,43 @@ void sr_handlepacket(struct sr_instance* sr,
 	struct packet_buffer* ipBufPtr = _pBuf;
 	while(ipBufPtr != NULL) {
 		struct arp_req_details* bufPtr = ipBufPtr->packetListHead;
+                struct arp_req_details* prevBufPtr = bufPtr;
 		while(bufPtr != NULL) {
 			if(difftime(getCurrentTimeInSeconds(),bufPtr->lastARPRequestSent)  >  ARP_REQUEST_TIMEOUT) {
 				if(bufPtr->arpReqCounter == 5) {
 					printf("\nDropping the following IP packet because there was no response for the corresponding ARP Request(sent for 5 times)\n");
                                         z_printICMPpacket(bufPtr->ipPacketDetails->packet, bufPtr->ipPacketDetails->len);
+                                        struct arp_req_details* freeIpBufPtr;
+                                        if(bufPtr == prevBufPtr) {
+                                            // First Node
+                                            freeIpBufPtr = ipBufPtr->packetListHead;
+                                            ipBufPtr->packetListHead = ipBufPtr->packetListHead->next;
+                                            bufPtr = ipBufPtr->packetListHead;
+                                            prevBufPtr = bufPtr;
+                                        } else {
+                                            prevBufPtr->next = bufPtr->next;
+                                            freeIpBufPtr = bufPtr;
+                                            bufPtr = bufPtr->next;
+                                        }
+                                        free(freeIpBufPtr->ipPacketDetails->packet);
+                                        free(freeIpBufPtr->ipPacketDetails);
+                                        free(freeIpBufPtr->arpRequestPacketDetails->packet);
+                                        free(freeIpBufPtr->arpRequestPacketDetails);
+                                        free(freeIpBufPtr);
 				} else {
 					// resend the ARP request packet
-                                        printf("\n Resending ARP Request(at <%d>) for %d th time.\n",bufPtr->arpRequestPacketDetails->interface, bufPtr->arpReqCounter);
+                                        printf("\n Resending ARP Request(at <%s>) for %d th time.\n",bufPtr->arpRequestPacketDetails->interface, bufPtr->arpReqCounter);
                                         z_printARPpacket(bufPtr->arpRequestPacketDetails->packet, bufPtr->arpRequestPacketDetails->len);
 					sr_send_packet(sr, bufPtr->arpRequestPacketDetails->packet, 
 										bufPtr->arpRequestPacketDetails->len, bufPtr->arpRequestPacketDetails->interface);
 					bufPtr->arpReqCounter = bufPtr->arpReqCounter+1;
 					bufPtr->lastARPRequestSent = getCurrentTimeInSeconds();
+                                        prevBufPtr = bufPtr;
+                                        bufPtr = bufPtr->next;
 				}
-			}
-			bufPtr = bufPtr->next;
+			} else {
+                                bufPtr = bufPtr->next;
+                        }
 		}
 		ipBufPtr = ipBufPtr->next;
 	}
