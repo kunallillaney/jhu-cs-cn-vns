@@ -66,7 +66,14 @@ void add_entry(struct tuple* tr)
 
 int check_entry(struct tuple* tr)
 {
-    
+    struct flow_table flow_table_walker = firewall_instance->head_flow_table;
+    while(flow_table_walker->next)
+    {
+        if(memcmp(&(flow_table_walker->flowEntry),tr,sizeof(struct tuple))==0)
+            return 1;
+         flow_table_walker = flow_table_walker->next;   
+    }
+    return 0;
 }/* end of check_entry */
 
 /*--------------------------------------------------------------------- 
@@ -105,7 +112,7 @@ void connection_refused(struct tuple* tr, uint8_t* packet, unsigned ipLen)
 
 int check_exception(struct tuple* tr)
 {
-    
+    l
 }/* end of check_exception */
 
 /*--------------------------------------------------------------------- 
