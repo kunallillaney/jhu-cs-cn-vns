@@ -25,8 +25,8 @@ struct tuple
     in_addr src_ip;     //Source Address
     in_addr dst_ip;     //Destination Address
     uint8_t protocol;   //Protocol
-    int src_port;       // Source Port
-    int dst_port;       // Destination Port 
+    uint16_t src_port;       // Source Port
+    uint16_t dst_port;       // Destination Port 
 };
 
 //Methods for tuple
