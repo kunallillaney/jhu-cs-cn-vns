@@ -57,8 +57,11 @@ void construct_tuple(tuple* tr, uint8_t* packet)
  *
  *---------------------------------------------------------------------*/
 
-void add_entry(struct tuple* tr)
+void add_entry(uint8_t* packet, unsigned ipLen)
 {
+    struct tuple* tr = (struct tuple*)malloc(sizeof(tuple));
+    construct_tuple(tr, packet);
+    
     if(check_entry(tr)==1)
     {
         increment_entry(tr);
@@ -70,7 +73,7 @@ void add_entry(struct tuple* tr)
         clear_flow_table();
         if(firewall_instance->flow_table_count> (FLOW_TABLE_SIZE-2))
         {
-            //call packet
+            send_icmp_refused(packet, ipLen);
             return NULL;
         }
         else
@@ -123,9 +126,57 @@ void add_tuple(struct tuple* tr)
     }
 }
 
-struct packet_details* send_icmp_refused(uint8_t* packet, unsigned ipLen)
+struct packet_details* send_icmp_refused(uint8_t* ipPacket, unsigned ipLen)
 {
+    struct ip* srcIp;
+    struct packet_details* packDets; 
+    struct in_addr tempAddr;
+    struct icmp* srcIcmp;
+    struct icmp_time_exceeded* icmpTime;
+    uint32_t testSum;
+    uint64_t tempData;
+    packDets = malloc(sizeof(struct packet_details));
     
+    /* getting IP Packet */
+	srcIp = (struct ip*) ipPacket;
+
+	/* checking ip checksum */
+	testSum = srcIp->ip_sum;
+	srcIp->ip_sum = 0x00;
+	if(verifyCheckSum((uint8_t*)ipPacket, sizeof(struct ip), testSum) == 0)
+	{
+		printf("\nINFO : Dropping Packet for wrong checksum in IP");
+		return NULL;
+	}
+        icmpTime = (struct icmp_time_exceeded*)(ipPacket + sizeof(struct ip));
+	memcpy(&tempData, icmpTime, sizeof(uint64_t));
+        
+        icmpTime->icmp_type = 0x03;
+	icmpTime->icmp_code = 0x03;
+			
+	icmpTime->icmp_unused = 0x0;
+	icmpTime->icmp_ip = *srcIp;
+	icmpTime->icmp_ipdata = tempData;
+		
+	/* computing icmp checksum */
+	icmpTime->icmp_sum = 0x0;
+	icmpTime->icmp_sum = computeCheckSum((uint8_t*)icmpTime, sizeof(struct icmp_time_exceeded));
+		
+	/* setting src and dst address*/
+        tempAddr = srcIp->ip_dst;
+	srcIp->ip_dst = srcIp->ip_src;
+	srcIp->ip_src = tempAddr;
+                
+        /* Setting ttl field to 256*/
+        srcIp->ip_ttl = 0xFF;
+		
+	/* computing ip checksum */
+        srcIp->ip_sum = 0x0;
+	srcIp->ip_sum = computeCheckSum((uint8_t*)ipPacket, sizeof(struct ip));
+	packDets->packet = ipPacket;	
+	packDets->len = sizeof(struct ip) + sizeof(struct icmp_time_exceeded);
+	return packDets;
+	
 }
 
 /*--------------------------------------------------------------------- 
@@ -251,21 +302,20 @@ int check_exception(struct tuple* tr)
     while(rule_table_walker)
     {
         if((rule_table_walker->ruleEntry->dst_ip.s_addr==tr->dst_ip.s_addr) && (rule_table_walker->ruleEntry->src_ip.s_addr==tr->src_ip.s_addr)
-                && (rule_table_walker->ruleEntry->protocol==tr->protocol)){
-            if(tr->protocol!=0x6 && tr->protocol!=0x17){
+                && (rule_table_walker->ruleEntry->protocol==tr->protocol))
+        {
+            if(tr->protocol!=0x6 && tr->protocol!=0x17)
                 return 1;
-            }
+        }
         else 
         {
              if((rule_table_walker->ruleEntry->dst_port==tr->dst_port)&&(rule_table_walker->ruleEntry->src_port==tr->src_port))
                 return 1;
          }
-            
+         rule_table_walker = rule_table_walker->next; 
      }
-       rule_table_walker = rule_table_walker->next;
-}/* end of method */
-    return 0;
-   }/* end of check_exception */
+     return 0;      
+} /* end of check_exception */
 
 /*--------------------------------------------------------------------- 
  * Method: populate_rule_table
