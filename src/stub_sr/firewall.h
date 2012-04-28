@@ -65,6 +65,6 @@ struct firewall
 };
 
 //Methods for firewall
-populate_rule_table(); //Populate rule table
+struct tuple* populate_rule_table(); //Populate rule table
 
 #endif /* --  sr_FIREWALL_H -- */
