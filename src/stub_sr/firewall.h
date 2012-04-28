@@ -36,11 +36,12 @@ struct tuple
 };
 
 //Methods for tuple
-void construct_tuple(tuple* tr, uint8_t* packet);       // Construct tuple from packet
+void construct_tuple(struct tuple* tr, uint8_t* packet);        // Construct tuple from packet
+struct tuple* invert_tuple(struct tuple* tr);   // Invert tuple
 
 struct flow_table
 {
-    struct tuple flowEntry;     //Flow Entry
+    struct tuple* flowEntry;     //Flow Entry
     int ttl;                    //Time to live 
     time_t timeStamp;           //TimeStamp when stored
     struct flow_table* next;         //Points to the next entry in the table 
@@ -50,10 +51,13 @@ void add_entry(struct tuple* tr);       //Add entry in Flow Table
 int check_entry(struct tuple* tr);      //Check if current entry exists or not
 void clear_flow_table();                //Clear Flow table of expired values
 void connection_refused(struct tuple* tr, uint8_t* packet, unsigned ipLen); //Sends ICMP connection refused packet
+void increment_entry(struct tuple* tr); //Increment entry ttl by X
+void add_tuple(struct tuple* tr);       //Add 2tuples in flow_table
+struct packet_details* send_icmp_refused(uint8_t* packet, unsigned ipLen); //Sends ICMP packet refused;
 
 struct rule_table
 {
-    struct tuple ruleEntry;     //Rule entry exception
+    struct tuple* ruleEntry;     //Rule entry exception
     struct rule_table next;     //Points to the next entry in the table
 };
 
@@ -64,7 +68,7 @@ struct firewall
 {
     struct flow_table* head_flow_table;
     struct rule_table* head_rule_table;
-    int flow_table_count; 
+    int flow_table_count = 0; 
 };
 
 //Methods for firewall
