@@ -112,7 +112,24 @@ void connection_refused(struct tuple* tr, uint8_t* packet, unsigned ipLen)
 
 int check_exception(struct tuple* tr)
 {
-    
+    struct rule_table rule_table_walker = firewall_instance->head_rule_table;
+    while(rule_table_walker->next)
+    {
+        if((rule_table_walker->ruleEntry->dst_ip.s_addr==tr->dst_ip.s_addr) && (rule_table_walker->ruleEntry->src_ip.s_addr==tr->src_ip.s_addr)
+                && (rule_table_walker->ruleEntry->protocol==tr->protocol)){
+            if(tr->protocol!=0x6 && tr->protocol!=0x17){
+                return 1;
+            }
+        else {
+             if((rule_table_walker->ruleEntry->dst_port!=tr->dst_port)||(rule_table_walker->ruleEntry->src_port!=tr->src_port)){
+                return 1;
+                }
+             }
+        }
+       else return 0;
+     }
+   }   
+           
 }/* end of check_exception */
 
 /*--------------------------------------------------------------------- 
