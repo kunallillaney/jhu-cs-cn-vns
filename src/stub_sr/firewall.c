@@ -23,12 +23,27 @@
 
 #include "firewall.h"
 #include "sr_protocol.h"
+/*--------------------------------------------------------------------- 
+ * Method: computeCheckSum
+ * Scope: Local
+ * Layer: Network Layer
+ * 
+ * Calculates the checksum for a given packet.
+ *---------------------------------------------------------------------*/
 
-time_t getCurrentTimeInSeconds() {
-	time_t current;
-	time(&current);
-	return current;
-}/* end of method*/
+uint16_t computeCheckSum(uint8_t *buff, uint16_t len_header);
+
+/*--------------------------------------------------------------------- 
+ * Method: checkSum
+ * Scope: Local
+ * Layer: Network Layer
+ * 
+ * Verifys the checksum for a given packet.
+ *---------------------------------------------------------------------*/
+
+uint16_t verifyCheckSum(uint8_t *buff, uint16_t len_header, uint16_t testSum);
+
+time_t getCurrentTimeInSeconds();
 
 /*--------------------------------------------------------------------- 
  * Method: construct_tuple
@@ -38,13 +53,13 @@ time_t getCurrentTimeInSeconds() {
  *
  *---------------------------------------------------------------------*/
 
-void construct_tuple(tuple* tr, uint8_t* packet)
+void construct_tuple(struct tuple* tr, uint8_t* packet)
 {
-    struct ip* ip_packet = packet;
+    struct ip* ip_packet = (struct ip*)packet;
     tr->src_ip = ip_packet->ip_src;
     tr->dst_ip = ip_packet->ip_dst;
     tr->protocol = ip_packet->ip_p;
-    struct transport_layer transport_packet = packet + sizeof(struct ip);
+    struct transport_layer* transport_packet = (struct transport_layer*)(packet + sizeof(struct ip));
     tr->src_port = transport_packet->src_port;
     tr->dst_port = transport_packet->dst_port;
     
@@ -59,7 +74,7 @@ void construct_tuple(tuple* tr, uint8_t* packet)
 
 struct packet_details* add_entry(uint8_t* packet, unsigned ipLen)
 {
-    struct tuple* tr = (struct tuple*)malloc(sizeof(tuple));
+    struct tuple* tr = (struct tuple*)malloc(sizeof(struct tuple));
     construct_tuple(tr, packet);
     
     if(check_entry(tr)==1)
@@ -85,6 +100,7 @@ struct packet_details* add_entry(uint8_t* packet, unsigned ipLen)
     {
         add_tuple(tr);
     }
+    return NULL;
 }/* end of add_entry */
 
 /*--------------------------------------------------------------------- 
@@ -98,13 +114,13 @@ void add_tuple(struct tuple* tr)
     firewall_instance->flow_table_count += 2;
     time_t current_time = getCurrentTimeInSeconds();
     struct flow_table* flow_table_walker = firewall_instance->head_flow_table;
-    struct flow_table* flow_table_entry = (struct flow_table*)malloc(struct flow_table);
+    struct flow_table* flow_table_entry = (struct flow_table*)malloc(sizeof(struct flow_table));
     flow_table_entry->flowEntry = tr;
     flow_table_entry->next = NULL;
     flow_table_entry->timeStamp = current_time;
     flow_table_entry->ttl = 5;
     
-    struct flow_table* inv_flow_table_entry = (struct flow_table*)malloc(struct flow_table);
+    struct flow_table* inv_flow_table_entry = (struct flow_table*)malloc(sizeof(struct flow_table));
     inv_flow_table_entry->flowEntry = invert_tuple(tr);
     inv_flow_table_entry->next = NULL;
     inv_flow_table_entry->timeStamp = current_time;
@@ -131,7 +147,6 @@ struct packet_details* send_icmp_refused(uint8_t* ipPacket, unsigned ipLen)
     struct ip* srcIp;
     struct packet_details* packDets; 
     struct in_addr tempAddr;
-    struct icmp* srcIcmp;
     struct icmp_time_exceeded* icmpTime;
     uint32_t testSum;
     uint64_t tempData;
@@ -193,7 +208,7 @@ void increment_entry(struct tuple* tr)
         if(memcmp(&(flow_table_walker->flowEntry),tr,sizeof(struct tuple))==0)
         {
             flow_table_walker->ttl += 5;
-            return NULL;
+            return;
         }
          flow_table_walker = flow_table_walker->next;   
     }
@@ -231,7 +246,6 @@ int check_entry(struct tuple* tr)
 void clear_flow_table()
 {
     struct flow_table* flow_table_walker = firewall_instance->head_flow_table;
-    time_t t;
     struct flow_table* prev_walker = flow_table_walker;
     
     while(flow_table_walker->next)
@@ -256,7 +270,7 @@ void clear_flow_table()
 
 struct tuple* invert_tuple(struct tuple* tr) 
 {
-    struct tuple* opposite_tuple;
+    struct tuple* opposite_tuple=NULL;
     opposite_tuple->src_ip = tr->dst_ip;
     opposite_tuple->dst_ip = tr->src_ip;
     opposite_tuple->src_port = tr->dst_port;
@@ -274,19 +288,6 @@ struct tuple* invert_tuple(struct tuple* tr)
  *
  *---------------------------------------------------------------------*/
 
-void connection_refused(struct tuple* tr, uint8_t* packet, unsigned ipLen)
-{
-    struct firewall* fire;
-    if(fire->flow_table_count>=FLOW_TABLE_SIZE){
-        clear_flow_table();
-        if(fire->flow_table_count<FLOW_TABLE_SIZE) {
-            add_entry(tr);
-        }
-    }
-    else if(fire->flow_table_count>=FLOW_TABLE_SIZE) {
-        /////send the packet to flow
-    }
-}/* end of connection_refused*/
 
 /*--------------------------------------------------------------------- 
  * Method: check_exception
@@ -329,45 +330,49 @@ int check_exception(struct tuple* tr)
  *
  *---------------------------------------------------------------------*/
 
-struct tuple* populate_rule_table()
+struct rule_table* populate_rule_table()
 {
-FILE* file = fopen("rule_table", "r");
-char linebuffer[40]; //a little extra room here than needed
-struct tuple ip;
-int i = 0, l = 0;
-
-while(fgets(linebuffer, 40, file)){
-    fgets(linebuffer, 40, file);
-    strcpy(ip.src_ip.s_addr, linebuffer);
-
-    l = strlen(linebuffer);
-    for(i = 0; i < l; ++i){
-        if(linebuffer[i] == '\n'){
-            linebuffer[i] = '\0';
-            break;
+        FILE* file = fopen("rule_table", "r");
+        struct rule_table* prevRuleTableNode = NULL;
+        struct rule_table* ruleTableNode = NULL;
+        struct rule_table* retTableNode = NULL;
+        struct tuple* tempTuple = NULL;
+        unsigned char sip1,sip2,sip3,sip4,dip1,dip2,dip3,dip4,protocolInFile;
+        long unsigned srcPort,destPort;
+        //int n;
+	//char s;        
+        //long unsigned t;
+        //while (fscanf(file,"%c.%d %lu",&s, &n, &t) != EOF) 
+        while (fscanf(file,"%c.%c.%c.%c %c.%c.%c.%c %c %lu %lu",&sip1,&sip2,&sip3,&sip4,&dip1,&dip2,&dip3,&dip4,&protocolInFile,&srcPort,&destPort) != EOF) 
+	{
+            prevRuleTableNode = ruleTableNode;
+            tempTuple = (struct tuple*)malloc(sizeof(struct tuple));
+            ruleTableNode = (struct rule_table*)malloc(sizeof(struct rule_table));
+            ruleTableNode->ruleEntry = tempTuple;
+            ruleTableNode->next = NULL;
+            
+            if(retTableNode == NULL) {
+                retTableNode = ruleTableNode;
+            } else {
+                prevRuleTableNode->next = ruleTableNode;
+            }
+            
+            memcpy(&tempTuple->src_ip, &sip4, sizeof(uint8_t));
+            memcpy((uint8_t*)(&tempTuple->src_ip)+1, &sip3, sizeof(uint8_t));
+            memcpy((uint8_t*)(&tempTuple->src_ip)+2, &sip2, sizeof(uint8_t));
+            memcpy((uint8_t*)(&tempTuple->src_ip)+3, &sip1, sizeof(uint8_t));
+            
+            memcpy(&tempTuple->dst_ip, &dip4, sizeof(uint8_t));
+            memcpy((uint8_t*)(&tempTuple->dst_ip)+1, &dip3, sizeof(uint8_t));
+            memcpy((uint8_t*)(&tempTuple->dst_ip)+2, &dip2, sizeof(uint8_t));
+            memcpy((uint8_t*)(&tempTuple->dst_ip)+3, &dip1, sizeof(uint8_t));
+            
+            tempTuple->protocol = protocolInFile;
+            tempTuple->src_port = srcPort;
+            tempTuple->dst_port = destPort;
         }
-    }
-
-    fgets(linebuffer, 40, file);
-    strcpy(ip.dst_ip.s_addr, linebuffer);
-
-    l = strlen(linebuffer);
-    for(i = 0; i < l; ++i){
-        if(linebuffer[i] == '\n'){
-            linebuffer[i] = '\0';
-            break;
-        }
-    }
-
-    fgets(linebuffer, 40, file);
-    ip.protocol=linebuffer;
-
-    fgets(linebuffer, 40, file);
-    ip.src_port = atoi(linebuffer);
-    fgets(linebuffer, 40, file);
-    ip.dst_port = atoi(linebuffer);
-    }
-return ip;    
+        fclose(file);
+        return retTableNode;
 }/* end of populate_rule_table */
 
 /*--------------------------------------------------------------------- 
@@ -409,5 +414,6 @@ struct packet_details* intiate_firewall(uint8_t *ipPacket,unsigned int ipPacketL
         }
     }
     *status = 1; //1 means drop packet
+    return NULL;
 }
 
