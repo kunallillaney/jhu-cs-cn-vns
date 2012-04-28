@@ -24,6 +24,10 @@
 #define FLOW_TABLE_SIZE 64
 #endif
 
+#ifndef FIREWALL_ENABLED
+#define FIREWALL_ENABLED 1
+#endif
+
 struct firewall* firewall_instance;
 
 struct tuple
@@ -47,7 +51,7 @@ struct flow_table
     struct flow_table* next;         //Points to the next entry in the table 
 };
 //Methods for flow_table
-void add_entry(struct tuple* tr);       //Add entry in Flow Table
+struct packet_details* add_entry(uint8_t* packet, unsigned ipLen);     //Add entry in Flow Table
 int check_entry(struct tuple* tr);      //Check if current entry exists or not
 void clear_flow_table();                //Clear Flow table of expired values
 void connection_refused(struct tuple* tr, uint8_t* packet, unsigned ipLen); //Sends ICMP connection refused packet
@@ -73,5 +77,6 @@ struct firewall
 
 //Methods for firewall
 struct tuple* populate_rule_table(); //Populate rule table
-
+struct packet_details* intiate_firewall(uint8_t *ipPacket,unsigned int ipPacketLen, char* interface, int* status);
+int check_interface(char* interface_name);
 #endif /* --  sr_FIREWALL_H -- */
