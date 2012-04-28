@@ -329,7 +329,12 @@ void dl_local_handleARPResponse(struct sr_instance* sr,
         unsigned int len,
 		char* interface) 
 {
-	struct sr_ethernet_hdr* ethHdr = (struct sr_ethernet_hdr*)packet;
+        
+        printf("\nCHECK THE BUFFER\n");
+        z_printICMPpacket(_pBuf->packetListHead->ipPacketDetails->packet, _pBuf->packetListHead->ipPacketDetails->len);
+
+        
+        struct sr_ethernet_hdr* ethHdr = (struct sr_ethernet_hdr*)packet;
 	struct sr_arphdr* arpHdr = (struct sr_arphdr*)(packet+sizeof(struct sr_ethernet_hdr));
 	
 	uint32_t ipAddr = arpHdr->ar_sip;
@@ -352,10 +357,10 @@ void dl_local_handleARPResponse(struct sr_instance* sr,
 				memcpy(tempEthHdr.ether_shost, sr_get_interface(sr, bufPtr->arpRequestPacketDetails->interface)->addr, ETHER_ADDR_LEN);
 				ethHdr->ether_type = htons(ETHERTYPE_IP); // TODO: For now, assume that only Network Layer packets buffered!
 				
-				unsigned int fullPacketLen = sizeof(tempEthHdr) + bufPtr->ipPacketDetails->len;
+				unsigned int fullPacketLen = sizeof(struct sr_ethernet_hdr) + bufPtr->ipPacketDetails->len;
 				uint8_t* fullPacket = (uint8_t*)malloc(fullPacketLen);
-				memcpy(fullPacket, &tempEthHdr, sizeof(tempEthHdr));
-				memcpy(fullPacket+sizeof(tempEthHdr), bufPtr->ipPacketDetails->packet, bufPtr->ipPacketDetails->len);
+				memcpy(fullPacket, &tempEthHdr, sizeof(struct sr_ethernet_hdr));
+				memcpy(fullPacket+sizeof(struct sr_ethernet_hdr), bufPtr->ipPacketDetails->packet, bufPtr->ipPacketDetails->len);
 				
 				// We can use the same interface that was used to send the ARP request.
                                 printf("\nFROM BUFFER, SENDING ICMP(mostly) REQUEST/RESPONSE FOR OTHERS\n");
@@ -922,6 +927,9 @@ void addToPacketBuffer(struct packet_details* arpPacketDetails,
 			prevIpBufPtr->next = ipBuf;
 		}
 	}
+        printf("\nAdded ICMP(mostly) packet to buffer\n");
+        z_printICMPpacket(_pBuf->packetListHead->ipPacketDetails->packet, _pBuf->packetListHead->ipPacketDetails->len);
+
 }
  
  /*--------------------------------------------------------------------- 
