@@ -759,6 +759,12 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
         //Calling Firewall
         if(FIREWALL_ENABLED==1)
         {
+            if(INIT == 1)
+            {
+                init();
+                INIT==0;
+            }
+            
             printf("\n  Entering inside firewall \n");
             packDets = intiate_firewall(ipPacket, ipPacketLen, interface, status);
             if(*status==1)
