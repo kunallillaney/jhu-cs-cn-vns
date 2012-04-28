@@ -329,12 +329,7 @@ void dl_local_handleARPResponse(struct sr_instance* sr,
         unsigned int len,
 		char* interface) 
 {
-        
-        printf("\nCHECK THE BUFFER\n");
-        z_printICMPpacket(_pBuf->packetListHead->ipPacketDetails->packet, _pBuf->packetListHead->ipPacketDetails->len);
-
-        
-        struct sr_ethernet_hdr* ethHdr = (struct sr_ethernet_hdr*)packet;
+	struct sr_ethernet_hdr* ethHdr = (struct sr_ethernet_hdr*)packet;
 	struct sr_arphdr* arpHdr = (struct sr_arphdr*)(packet+sizeof(struct sr_ethernet_hdr));
 	
 	uint32_t ipAddr = arpHdr->ar_sip;
@@ -357,15 +352,13 @@ void dl_local_handleARPResponse(struct sr_instance* sr,
 				memcpy(tempEthHdr.ether_shost, sr_get_interface(sr, bufPtr->arpRequestPacketDetails->interface)->addr, ETHER_ADDR_LEN);
 				ethHdr->ether_type = htons(ETHERTYPE_IP); // TODO: For now, assume that only Network Layer packets buffered!
 				
-				unsigned int fullPacketLen = sizeof(struct sr_ethernet_hdr) + bufPtr->ipPacketDetails->len;
+				unsigned int fullPacketLen = sizeof(tempEthHdr) + bufPtr->ipPacketDetails->len;
 				uint8_t* fullPacket = (uint8_t*)malloc(fullPacketLen);
-				memcpy(fullPacket, &tempEthHdr, sizeof(struct sr_ethernet_hdr));
-				memcpy(fullPacket+sizeof(struct sr_ethernet_hdr), bufPtr->ipPacketDetails->packet, bufPtr->ipPacketDetails->len);
+				memcpy(fullPacket, &tempEthHdr, sizeof(tempEthHdr));
+				memcpy(fullPacket+sizeof(tempEthHdr), bufPtr->ipPacketDetails->packet, bufPtr->ipPacketDetails->len);
 				
 				// We can use the same interface that was used to send the ARP request.
-                                printf("\nFROM BUFFER, SENDING ICMP(mostly) REQUEST/RESPONSE FOR OTHERS\n");
-                                z_printICMPpacket(bufPtr->ipPacketDetails->packet, bufPtr->ipPacketDetails->len);
-                                sr_send_packet(sr, fullPacket, fullPacketLen, bufPtr->arpRequestPacketDetails->interface);
+				sr_send_packet(sr, fullPacket, fullPacketLen, bufPtr->arpRequestPacketDetails->interface);
 				
 				// free all memory
 				//free(bufPtr->ipPacketDetails->packet);
@@ -442,6 +435,13 @@ struct packet_details* dl_handleARPPacket(struct sr_instance* sr,uint8_t * packe
 	return NULL;
 }
 
+/*--------------------------------------------------------------------- 
+ * Method: computeCheckSum
+ * Scope: Local
+ * Layer: Network Layer
+ * 
+ * Calculates the checksum for a given packet.
+ *---------------------------------------------------------------------*/
 
 uint16_t computeCheckSum(uint8_t *buff, uint16_t len_header)
 {
@@ -464,105 +464,40 @@ uint16_t computeCheckSum(uint8_t *buff, uint16_t len_header)
        sum = ~sum;
 
        return htons(((uint16_t) sum));
-}
-
-uint16_t verifyCheckSum(uint8_t *buff, uint16_t len_header, uint16_t testSum)
-{
-       // TODO: HAck
-        if(1) {
-            return 1;
-        }
-    
-       uint16_t word16;
-       uint32_t sum=0;
-       uint16_t i;
-
-       /* make 16 bit words out of every two adjacent 8 bit words in the packet
-                and add them up */
-       for (i=0;i<len_header;i=i+2){
-			   word16=((buff[i]<<8)&0xFF00)+(buff[i+1]&0xFF);
-			   sum = sum + (uint32_t) word16;
-       }
-
-       /* take only 16 bits out of the 32 bit sum and add up the carries */
-       while (sum>>16)
-         sum = (sum & 0xFFFF)+(sum >> 16);
-
-       /* one's complement the result */
-       sum = ~sum;
        
-       if(testSum == htons((uint16_t)sum))
-			return 1;
-		else 
-			return 0;
-
-}
-
-
-/*
-uint16_t icmp_checksum( uint8_t type,uint8_t code,uint16_t id,uint16_t seq)
-{
-       register uint16_t sum;
-       uint16_t comp = 0xFF;
-   sum = (( ((type^comp)&(code^comp)) & ((id^comp) &(seq^comp)) )^comp);
-   return ~sum;
-}
-*/
+}/* end of computechecksum*/
 
 /*--------------------------------------------------------------------- 
  * Method: checkSum
  * Scope: Local
  * Layer: Network Layer
  * 
- * Checks the checksum for a given packet.
+ * Verifys the checksum for a given packet.
  *---------------------------------------------------------------------*/
-int checkSum(uint16_t* packet, unsigned int len)
+
+uint16_t verifyCheckSum(uint8_t *buff, uint16_t len_header, uint16_t testSum)
 {
-	// TODO: hack
-	if(1) {
-		return 1;
-	}
-	uint16_t checksum = 0x0;
-	int count = 0;
-	
-	while(count < len/sizeof(u_int16_t))
-	{
-		checksum += *packet;
-		packet++;
-	}
-	if(checksum == 0xFF)
-		return 1;
-	else 
-		return 0;
-}/* end of checksum*/ 
- 
-/*--------------------------------------------------------------------- 
- * Method: computeCheckSum
- * Scope: Local
- * Layer: Network Layer
- * 
- * Calculates the checksum for a given packet.
- *---------------------------------------------------------------------*/
-//TODO: renamed Kunal's function from computeCheckSum to computeCheckSum1
-uint16_t computeCheckSum1(uint16_t* packet, unsigned int len)
-{
-	uint16_t checksum = 0x0;
-	int count = 0;
-	
-	while(count < len/sizeof(u_int16_t))
-	{
-		checksum += *packet; 
-		packet++;
-	}
-	return checksum;
-}/* end of computechecksum*/
+       // TODO: HAck
+       /*
+        if(1) {
+            return 1;
+        }
+         */
+    
+       if(testSum == computeCheckSum(buff, len_header))
+			return 1;
+		else 
+			return 0;
+
+}/* end of verifycheckcum */
+
 
 /*--------------------------------------------------------------------- 
  * Method: check_self
  * Scope: Local
  * Layer: Network Layer
  * 
- * Returns Ip address
+ * Returns 1 if true and 0 if false
  *---------------------------------------------------------------------*/
 
 int sr_check_self(struct sr_instance* sr, uint32_t destip)
@@ -584,32 +519,7 @@ int sr_check_self(struct sr_instance* sr, uint32_t destip)
 
     return 0;
 } /* end of method */
-/* 
-*nl_HandleIcmpPacket(uint8_t* icmpPacket, unsigned int icmpPacketlen)
-*{
-*	
-*	struct icmp* srcIcmp;
-*	
-*	
-*	srcIp = (struct icmp*) icmpPacket;
-*	
-*	
-*	if(checkSum((uint16_t*)icmpPacket, sizeof(struct ip)) == 0)
-*	{
-*		printf("INFO : Dropping Packet for wrong checksum in ICMP");
-*		return NULL;
-*	}
-*	
-*	
-*	icmpPacket->icmp_code = 0x0;
-*	icmpPacket->icmp_type = 0x0;
-*	
-*	
-*	srcIcmp->icmp_sum = 0x0;
-*	srcIcmp->icmp_sum = computeCheckSum((uint16_t*)icmpPacket, sizeof(struct icmp));
-*
-*}
-*/
+
  
  /*--------------------------------------------------------------------- 
  * Method: nl_handleIPv4Packet
@@ -676,15 +586,15 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
 		
 		/* computing icmp checksum */
 		icmpTime->icmp_sum = 0x0;
-		icmpTime->icmp_sum = computeCheckSum((uint8_t*)icmpTime, sizeof(struct icmp));
+		icmpTime->icmp_sum = computeCheckSum((uint8_t*)icmpTime, sizeof(struct icmp_time_exceeded));
 		
 		/* setting src and dst address*/
 		tempAddr = srcIp->ip_dst;
 		srcIp->ip_dst = srcIp->ip_src;
 		srcIp->ip_src = tempAddr;
                 
-                /* Setting ttl field to 256*/
-                srcIp->ip_ttl = 0xFF;
+        /* Setting ttl field to 256*/
+        srcIp->ip_ttl = 0xFF;
 		
 		/* computing ip checksum */
 		srcIp->ip_sum = 0x0;
@@ -701,14 +611,13 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
 	inSrif = sr_get_interface(sr, interface);
 	if(srcIp->ip_p == 0x01 && srcIp->ip_dst.s_addr == inSrif->ip)
 	{
-                printf("\nRECIEVED ICMP REQUEST For MYSELF\n");
-                z_printICMPpacket(ipPacket, ipPacketLen);
+	
 		srcIcmp = (struct icmp*)(ipPacket + sizeof(struct ip));
 	
 		/* checking ICMP checksum */
 		testSum = srcIcmp->icmp_sum;
 		srcIcmp->icmp_sum = 0x00;
-		if(verifyCheckSum((uint8_t*)srcIcmp, sizeof(struct icmp), testSum) == 0)
+		if(verifyCheckSum((uint8_t*)srcIcmp, (uint8_t)ipPacketLen - sizeof(struct ip), testSum) == 0)
 		{
 			printf("\nINFO : Dropping Packet for wrong checksum in ICMP\n");
 			return NULL;
@@ -717,18 +626,18 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
 		/* setting icmp type,code, identifier, */
 		srcIcmp->icmp_code = 0x0;
 		srcIcmp->icmp_type = 0x0;
-	
+		
 		/* computing icmp checksum */
 		srcIcmp->icmp_sum = 0x0;
-		srcIcmp->icmp_sum = computeCheckSum((uint8_t*)srcIcmp, sizeof(struct icmp));
+		srcIcmp->icmp_sum = computeCheckSum((uint8_t*)srcIcmp, ipPacketLen - sizeof(struct ip));
 		
 		/* setting src and dst address*/
 		tempAddr = srcIp->ip_dst;
 		srcIp->ip_dst = srcIp->ip_src;
 		srcIp->ip_src = tempAddr;
                 
-                /* Setting ttl field to 256*/
-                srcIp->ip_ttl = 0xFF;
+        /* Setting ttl field to 256*/
+        srcIp->ip_ttl = 0xFF;
 		
 		/* computing ip checksum */
 		srcIp->ip_sum = 0x0;
@@ -742,19 +651,18 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
 	}
 	
 	//All normal Cases
-	printf("\n RECIEVED ICMP(mostly) REQUEST/RESPONSE For OTHERS\n");
-        z_printICMPpacket(ipPacket, ipPacketLen);	
-	/* computing ip checksum */
-	srcIp->ip_sum = 0x0;
-	srcIp->ip_sum = computeCheckSum((uint16_t*)ipPacket, sizeof(struct ip));
 	
 	/* setting ip packet*/
 	srcIp->ip_ttl = srcIp->ip_ttl - 0x01; 
+			
+	/* computing ip checksum */
+	srcIp->ip_sum = 0x0;
+	srcIp->ip_sum = computeCheckSum((uint8_t*)ipPacket, sizeof(struct ip));
 	
 	packDets->packet = ipPacket;
 	packDets->len = ipPacketLen;
 	
-	return packDets;
+	return packDets;	
 }
 
  
@@ -927,9 +835,6 @@ void addToPacketBuffer(struct packet_details* arpPacketDetails,
 			prevIpBufPtr->next = ipBuf;
 		}
 	}
-        printf("\nAdded ICMP(mostly) packet to buffer\n");
-        z_printICMPpacket(_pBuf->packetListHead->ipPacketDetails->packet, _pBuf->packetListHead->ipPacketDetails->len);
-
 }
  
  /*--------------------------------------------------------------------- 
@@ -1053,8 +958,6 @@ void dl_handlePacket(struct sr_instance* sr,
 					
 					// Send this constructed packet
 					sr_send_packet(sr, packetToBeSent, packetToBeSentLen, interfaceToBeSentOn);
-                                        printf("\n SENDING ICMP(mostly) REQUEST/RESPONSE For OTHERS\n");
-                                        z_printICMPpacket(packetToBeSent, packetToBeSentLen);
 				}
 			}
 			break;
@@ -1107,7 +1010,7 @@ void sr_handlepacket(struct sr_instance* sr,
     assert(packet);
     assert(interface);
 
-    printf("\n*** -> Received packet of length %d \n",len);
+    printf("*** -> Received packet of length %d \n",len);
     
     struct sr_ethernet_hdr* ethHdr = (struct sr_ethernet_hdr*)packet;
 	if(ethHdr->ether_type == htons(ETHERTYPE_ARP)) {
