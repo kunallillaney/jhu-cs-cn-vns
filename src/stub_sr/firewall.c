@@ -99,7 +99,16 @@ void clear_flow_table()
 
 void connection_refused(struct tuple* tr, uint8_t* packet, unsigned ipLen)
 {
-    
+    struct firewall* fire;
+    if(fire->flow_table_count>=FLOW_TABLE_SIZE){
+        clear_flow_table();
+        if(fire->flow_table_count<FLOW_TABLE_SIZE) {
+            add_entry(tr);
+        }
+    }
+    else if(fire->flow_table_count>=FLOW_TABLE_SIZE) {
+        /////send the packet to flow
+    }
 }/* end of connection_refused*/
 
 /*--------------------------------------------------------------------- 
