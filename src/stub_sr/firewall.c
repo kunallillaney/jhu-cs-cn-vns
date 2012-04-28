@@ -328,6 +328,10 @@ return ip;
 
 int check_interface(char* interface_name)
 {
-   
+    
+    if((strcmp(interface_name,"eth0")==0))
+        return 1;
+    else
+        return 0;
 }/* end of check_interface*/
 
