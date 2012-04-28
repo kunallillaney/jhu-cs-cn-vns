@@ -27,6 +27,55 @@
 
 struct packet_buffer *_pBuf = NULL;
 struct arp_cache *_arpCache = NULL;
+/*---------------------------------------------------------------------
+ * Method: void z_printICMPpacket(uint8_t * packet, unsigned int len)
+ *
+ * Print an ICMP packet
+ *---------------------------------------------------------------------*/
+void z_printICMPpacket(uint8_t* packet,int len)
+{
+	printf("======== ICMP packet ========\n");
+	
+	/*
+	* 8 bit: Type
+	* 8 bit: Code
+	* 8 bit: Checksum
+	* 16 bit: Identifier
+	* 16 bit: Sequence Number
+	*/
+	//8.bit: ICMP type
+	printf("ICMP Type: ");
+	printf("%02X ", packet[20]);
+	printf("\n");
+	
+	//8.bit: ICMP code
+	printf("ICMP Code: ");
+	printf("%02X ", packet[21]);
+	printf("\n");
+	
+	//16.bit: ICMP checksum
+	printf("ICMP checksum: ");
+	for (int i = 22; i < 24; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("\n");
+	
+	//16.bit: ICMP identifier
+	printf("ICMP identifier: ");
+	for (int i = 24; i < 26; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("\n");
+	
+	//16.bit: ICMP sequence number
+	printf("ICMP identifier: ");
+	for (int i = 26; i < 28; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("\n");
+
+}/* end of z_printICMPpacket*/
+
 
 time_t getCurrentTimeInSeconds() {
 	time_t current;
