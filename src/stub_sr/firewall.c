@@ -57,7 +57,7 @@ void construct_tuple(tuple* tr, uint8_t* packet)
  *
  *---------------------------------------------------------------------*/
 
-void add_entry(uint8_t* packet, unsigned ipLen)
+struct packet_details* add_entry(uint8_t* packet, unsigned ipLen)
 {
     struct tuple* tr = (struct tuple*)malloc(sizeof(tuple));
     construct_tuple(tr, packet);
@@ -73,8 +73,8 @@ void add_entry(uint8_t* packet, unsigned ipLen)
         clear_flow_table();
         if(firewall_instance->flow_table_count> (FLOW_TABLE_SIZE-2))
         {
-            send_icmp_refused(packet, ipLen);
-            return NULL;
+           printf("\n  FlOW TABLE FULL RETURNING ICMPreachable\n"); 
+           return send_icmp_refused(packet, ipLen);
         }
         else
         {
@@ -382,4 +382,28 @@ int check_interface(char* interface_name)
     else
         return 0;
 }/* end of check_interface*/
+
+struct packet_details* intiate_firewall(uint8_t *ipPacket,unsigned int ipPacketLen, char* interface, int* status)
+{
+    if(check_interface(interface)==0){
+        return add_entry(ipPacket,ipPacketLen);
+    }
+    else
+    {
+        struct tuple* tr = (struct tuple*)malloc(sizeof(struct tuple));
+        construct_tuple(tr, ipPacket);
+        if(check_entry(tr)==1)
+        {
+            increment_entry(tr);
+            increment_entry(invert_tuple(tr));
+            *status = 0; //0 means do nothing
+            return NULL;
+        }
+        else if(check_exception(tr)==1)
+        {
+            return add_entry(ipPacket,ipPacketLen);
+        }
+    }
+    *status = 1; //1 means drop packet
+}
 
