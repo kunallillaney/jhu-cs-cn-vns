@@ -20,6 +20,12 @@
 #include <inttypes.h>
 #endif
 
+#ifndef FLOW_TABLE_SIZE
+#define FLOW_TABLE_SIZE 64
+#endif
+
+struct firewall* firewall_instance;
+
 struct tuple
 {
     in_addr src_ip;     //Source Address
@@ -56,12 +62,9 @@ int check_exception(struct tuple* tr); //Checks if a particular exception exists
 
 struct firewall
 {
-    #ifndef FLOW_TABLE_SIZE
-    #define FLOW_TABLE_SIZE 64
-    #endif
-    
     struct flow_table* head_flow_table;
     struct rule_table* head_rule_table;
+    int flow_table_count; 
 };
 
 //Methods for firewall
