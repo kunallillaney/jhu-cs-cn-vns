@@ -34,6 +34,84 @@ struct arp_cache *_arpCache = NULL;
  *---------------------------------------------------------------------*/
 void z_printICMPpacket(uint8_t* packet,int len)
 {
+	printf("======== IP packet ========\n");
+	
+	/*
+	* 8 bit: Version + Internet Header Length
+	* 8 bit: DSCP +ECN
+	* 16 bit: Total Length
+	* 16 bit: Identifier
+	* 16 bit: Flag + Frag offset
+	* 8 bit: TTl
+	* 8 bit: Protocol
+	* 16 bit: Header Checksum
+	* 32 bit: Source Address
+	* 32 bit: Destination Address
+	*/
+	
+	//8.bit: IP Version + Header Length
+	printf("IP Version + Header Length: ");
+	printf("%02X ", packet[0]);
+	printf("\n");
+	
+	//8.bit: IP DSCP + ECN
+	printf("IP DSCP + ECN: ");
+	printf("%02X ", packet[1]);
+	printf("\n");
+	
+	//16.bit: IP total length
+	printf("IP total length: ");
+	for (int i = 2; i < 4; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("\n");
+	
+	//16.bit: IP identifier
+	printf("IP identifier: ");
+	for (int i = 4; i < 6; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("\n");
+	
+	//16.bit: IP Flag + Frag offset
+	printf("IP Flag + Frag offset: ");
+	for (int i = 6; i < 8; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("\n");
+	
+	//8.bit: IP ttl
+	printf("IP ttl: ");
+	printf("%02X ", packet[8]);
+	printf("\n");
+	
+	//8.bit: IP Protocol
+	printf("IP Protocol: ");
+	printf("%02X ", packet[9]);
+	printf("\n");
+	
+	//16.bit: IP Header Checksum
+	printf("IP Header Checksum: ");
+	for (int i = 10; i < 12; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("\n");
+	
+	//16.bit: IP Source Address
+	printf("IP Source Address: ");
+	for (int i = 12; i < 16; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("\n");
+	
+	//16.bit: IP Destination Address
+	printf("IP Destination Address: ");
+	for (int i = 16; i < 20; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("\n");
+	
+	
 	printf("======== ICMP packet ========\n");
 	
 	/*
@@ -73,6 +151,7 @@ void z_printICMPpacket(uint8_t* packet,int len)
 		printf("%02X ", packet[i]);
 	}
 	printf("\n");
+	
 
 }/* end of z_printICMPpacket*/
 
@@ -83,6 +162,83 @@ void z_printICMPpacket(uint8_t* packet,int len)
  *---------------------------------------------------------------------*/
 void z_printICMPtimepacket(uint8_t* packet,int len)
 {
+	printf("======== IP packet ========\n");
+	
+	/*
+	* 8 bit: Version + Internet Header Length
+	* 8 bit: DSCP +ECN
+	* 16 bit: Total Length
+	* 16 bit: Identifier
+	* 16 bit: Flag + Frag offset
+	* 8 bit: TTl
+	* 8 bit: Protocol
+	* 16 bit: Header Checksum
+	* 32 bit: Source Address
+	* 32 bit: Destination Address
+	*/
+	
+	//8.bit: IP Version + Header Length
+	printf("IP Version + Header Length: ");
+	printf("%02X ", packet[0]);
+	printf("\n");
+	
+	//8.bit: IP DSCP + ECN
+	printf("IP DSCP + ECN: ");
+	printf("%02X ", packet[1]);
+	printf("\n");
+	
+	//16.bit: IP total length
+	printf("IP total length: ");
+	for (int i = 2; i < 4; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("\n");
+	
+	//16.bit: IP identifier
+	printf("IP identifier: ");
+	for (int i = 4; i < 6; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("\n");
+	
+	//16.bit: IP Flag + Frag offset
+	printf("IP Flag + Frag offset: ");
+	for (int i = 6; i < 8; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("\n");
+	
+	//8.bit: IP ttl
+	printf("IP ttl: ");
+	printf("%02X ", packet[8]);
+	printf("\n");
+	
+	//8.bit: IP Protocol
+	printf("IP Protocol: ");
+	printf("%02X ", packet[9]);
+	printf("\n");
+	
+	//16.bit: IP Header Checksum
+	printf("IP Header Checksum: ");
+	for (int i = 10; i < 12; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("\n");
+	
+	//16.bit: IP Source Address
+	printf("IP Source Address: ");
+	for (int i = 12; i < 16; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("\n");
+	
+	//16.bit: IP Destination Address
+	printf("IP Destination Address: ");
+	for (int i = 16; i < 20; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("\n");
+	
 	printf("======== ICMP Time Exceeded packet ========\n");
 	
 	/*
