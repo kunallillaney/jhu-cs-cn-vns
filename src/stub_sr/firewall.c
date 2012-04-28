@@ -112,7 +112,7 @@ void connection_refused(struct tuple* tr, uint8_t* packet, unsigned ipLen)
 
 int check_exception(struct tuple* tr)
 {
-    l
+    
 }/* end of check_exception */
 
 /*--------------------------------------------------------------------- 
