@@ -301,6 +301,10 @@ int check_exception(struct tuple* tr)
     struct rule_table* rule_table_walker = firewall_instance->head_rule_table;
     while(rule_table_walker)
     {
+        if(rule_table_walker->ruleEntry->dst_ip.s_addr== 0 || rule_table_walker->ruleEntry->src_ip.s_addr== 0
+                || rule_table_walker->ruleEntry->dst_port== 0 ||rule_table_walker->ruleEntry->src_port== 0 || rule_table_walker->ruleEntry->protocol== 0)
+            return 1;
+        
         if((rule_table_walker->ruleEntry->dst_ip.s_addr==tr->dst_ip.s_addr) && (rule_table_walker->ruleEntry->src_ip.s_addr==tr->src_ip.s_addr)
                 && (rule_table_walker->ruleEntry->protocol==tr->protocol))
         {
