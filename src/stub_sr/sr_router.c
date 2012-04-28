@@ -27,6 +27,147 @@
 
 struct packet_buffer *_pBuf = NULL;
 struct arp_cache *_arpCache = NULL;
+
+/*---------------------------------------------------------------------
+ * Method: void z_printARPpacket(uint8_t * packet, unsigned int len)
+ *
+ * Print an ARP packet
+ *---------------------------------------------------------------------*/
+void z_printARPpacket(uint8_t * packet, int len) {
+	printf("======== ARP packet ========\n");
+
+	/* ARP packet format
+	 *  http://tools.ietf.org/html/rfc826
+	 Ethernet transmission layer (not necessarily accessible to
+	 the user):
+	 48.bit: Ethernet address of destination
+	 48.bit: Ethernet address of sender
+	 16.bit: Protocol type = ether_type$ADDRESS_RESOLUTION
+	 Ethernet packet data:
+	 16.bit: (ar$hrd) Hardware address space (e.g., Ethernet,
+	 Packet Radio Net.)
+	 16.bit: (ar$pro) Protocol address space.  For Ethernet
+	 hardware, this is from the set of type
+	 fields ether_typ$<protocol>.
+	 8.bit: (ar$hln) byte length of each hardware address
+	 8.bit: (ar$pln) byte length of each protocol address
+	 16.bit: (ar$op)  opcode (ares_op$REQUEST | ares_op$REPLY)
+	 nbytes: (ar$sha) Hardware address of sender of this
+	 packet, n from the ar$hln field.
+	 mbytes: (ar$spa) Protocol address of sender of this
+	 packet, m from the ar$pln field.
+	 nbytes: (ar$tha) Hardware address of target of this
+	 packet (if known).
+	 mbytes: (ar$tpa) Protocol address of target.
+	 */
+
+	//48.bit: Ethernet address of destination
+	printf("Ethernet DST: ");
+	for (int i = 0; i < 6; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("\n");
+
+	// 48.bit: Ethernet address of sender
+	printf("Ethernet SRC: ");
+	for (int i = 6; i < 12; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("\n");
+
+	// 16.bit: Protocol type
+	printf("Protocal Type: ");
+	for (int i = 12; i < 14; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("\n");
+
+	//16.bit: (ar$hrd) Hardware address space (e.g., Ethernet,
+	//                 Packet Radio Net.)
+	printf("Hardware address space: ");
+	for (int i = 14; i < 16; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("\n");
+
+	//16.bit: (ar$pro) Protocol address space.  For Ethernet
+	//                 hardware, this is from the set of type
+	//                 fields ether_typ$<protocol>.
+	printf("IP address space: ");
+	for (int i = 16; i < 18; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("\n");
+
+	// 8.bit: (ar$hln) byte length of each hardware address
+	printf("byte length of each hardware address: ");
+	for (int i = 18; i < 19; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("\n");
+
+	// 8.bit: (ar$pln) byte length of each protocol address
+	printf("byte length of each IP address: ");
+	for (int i = 19; i < 20; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("\n");
+
+	// 16.bit: (ar$op)  opcode (ares_op$REQUEST | ares_op$REPLY)
+	printf("opcode (ares_op$REQUEST | ares_op$REPLY): ");
+	for (int i = 20; i < 22; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("\n");
+
+	// nbytes: (ar$sha) Hardware address of sender of this
+	//                 packet, n from the ar$hln field.
+	int arhln = 6; //TODO
+	printf("Hardware address of sender of this packet: ");
+	for (int i = 22; i < 22 + arhln; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("\n");
+
+	// mbytes: (ar$spa) Protocol address of sender of this
+	//                 packet, m from the ar$pln field.
+	int arpln = 4; //TODO
+	printf("IP address of sender of this packet: ");
+	for (int i = 22 + arhln; i < 22 + arhln + arpln; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("(");
+	for (int i = 22 + arhln; i < 22 + arhln + arpln; i++) {
+		printf("%d.", packet[i]);
+	}
+	printf(")");
+	printf("\n");
+
+	// nbytes: (ar$tha) Hardware address of target of this
+	//                 packet (if known).
+	printf("Hardware address of target of this packet: ");
+	for (int i = 22 + arhln + arpln; i < 22 + 2 * arhln + arpln; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("\n");
+
+	// mbytes: (ar$tpa) Protocol address of target.
+	printf("IP address of target of this packet: ");
+	for (int i = 22 + 2 * arhln + arpln; i < 22 + 2* arhln + 2* arpln; i++) {
+		printf("%02X ", packet[i]);
+	}
+	printf("(");
+	for (int i = 22 + 2 * arhln + arpln; i < 22 + 2* arhln + 2* arpln; i++) {
+		printf("%d.", packet[i]);
+	}
+	printf(")");
+	printf("%d", 22 + 2* arhln + 2* arpln);
+	printf("\n");
+
+	printf("========  end  ========\n");
+	
+}
+
 /*---------------------------------------------------------------------
  * Method: void z_printICMPpacket(uint8_t * packet, unsigned int len)
  *
@@ -329,7 +470,9 @@ void dl_local_handleARPResponse(struct sr_instance* sr,
         unsigned int len,
 		char* interface) 
 {
-	struct sr_ethernet_hdr* ethHdr = (struct sr_ethernet_hdr*)packet;
+        
+        
+        struct sr_ethernet_hdr* ethHdr = (struct sr_ethernet_hdr*)packet;
 	struct sr_arphdr* arpHdr = (struct sr_arphdr*)(packet+sizeof(struct sr_ethernet_hdr));
 	
 	uint32_t ipAddr = arpHdr->ar_sip;
@@ -352,13 +495,15 @@ void dl_local_handleARPResponse(struct sr_instance* sr,
 				memcpy(tempEthHdr.ether_shost, sr_get_interface(sr, bufPtr->arpRequestPacketDetails->interface)->addr, ETHER_ADDR_LEN);
 				ethHdr->ether_type = htons(ETHERTYPE_IP); // TODO: For now, assume that only Network Layer packets buffered!
 				
-				unsigned int fullPacketLen = sizeof(tempEthHdr) + bufPtr->ipPacketDetails->len;
+				unsigned int fullPacketLen = sizeof(struct sr_ethernet_hdr) + bufPtr->ipPacketDetails->len;
 				uint8_t* fullPacket = (uint8_t*)malloc(fullPacketLen);
-				memcpy(fullPacket, &tempEthHdr, sizeof(tempEthHdr));
-				memcpy(fullPacket+sizeof(tempEthHdr), bufPtr->ipPacketDetails->packet, bufPtr->ipPacketDetails->len);
+				memcpy(fullPacket, &tempEthHdr, sizeof(struct sr_ethernet_hdr));
+				memcpy(fullPacket+sizeof(struct sr_ethernet_hdr), bufPtr->ipPacketDetails->packet, bufPtr->ipPacketDetails->len);
 				
 				// We can use the same interface that was used to send the ARP request.
-				sr_send_packet(sr, fullPacket, fullPacketLen, bufPtr->arpRequestPacketDetails->interface);
+                                printf("\nFROM BUFFER, SENDING ICMP(mostly) REQUEST/RESPONSE FOR OTHERS\n");
+                                z_printICMPpacket(bufPtr->ipPacketDetails->packet, bufPtr->ipPacketDetails->len);
+                                sr_send_packet(sr, fullPacket, fullPacketLen, bufPtr->arpRequestPacketDetails->interface);
 				
 				// free all memory
 				//free(bufPtr->ipPacketDetails->packet);
@@ -390,7 +535,7 @@ void dl_local_handleARPResponse(struct sr_instance* sr,
 struct packet_details* dl_handleARPPacket(struct sr_instance* sr,uint8_t * packet/* lent */,
         unsigned int len,char* interface) 
 {
-		struct sr_ethernet_hdr* e_hdr = (struct sr_ethernet_hdr*)packet;
+                struct sr_ethernet_hdr* e_hdr = (struct sr_ethernet_hdr*)packet;
 		struct sr_arphdr*       a_hdr = (struct sr_arphdr*)(packet + sizeof(struct sr_ethernet_hdr));
 		struct sr_if* iface = sr_get_interface(sr, interface);
 		int type = -1;
@@ -429,6 +574,9 @@ struct packet_details* dl_handleARPPacket(struct sr_instance* sr,uint8_t * packe
 				}
 				break;
 			case 1:
+                                a_hdr->ar_sha[0] = 0xFB;
+                                printf("\nCHECK THE BUFFER - TWO\n");
+                                z_printICMPpacket(_pBuf->packetListHead->ipPacketDetails->packet, _pBuf->packetListHead->ipPacketDetails->len);
 				dl_local_handleARPResponse(sr, packet, len, interface);
 				break;
 		}
@@ -611,7 +759,8 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
 	inSrif = sr_get_interface(sr, interface);
 	if(srcIp->ip_p == 0x01 && srcIp->ip_dst.s_addr == inSrif->ip)
 	{
-	
+                printf("\nRECIEVED ICMP REQUEST For MYSELF\n");
+                z_printICMPpacket(ipPacket, ipPacketLen);
 		srcIcmp = (struct icmp*)(ipPacket + sizeof(struct ip));
 	
 		/* checking ICMP checksum */
@@ -651,6 +800,8 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
 	}
 	
 	//All normal Cases
+	printf("\n RECIEVED ICMP(mostly) REQUEST/RESPONSE For OTHERS\n");
+        z_printICMPpacket(ipPacket, ipPacketLen);	
 	
 	/* setting ip packet*/
 	srcIp->ip_ttl = srcIp->ip_ttl - 0x01; 
@@ -795,7 +946,12 @@ void addToPacketBuffer(struct packet_details* arpPacketDetails,
 	struct arp_req_details* node = (struct arp_req_details*)malloc(sizeof(struct arp_req_details));
 	node->lastARPRequestSent = getCurrentTimeInSeconds();
 	node->ipPacketDetails = ipPacketDetails;
-	node->arpRequestPacketDetails = arpPacketDetails;
+        // The following two lines are very important because VNS frees up the memory of this packet
+        uint8_t* ipPacketCopy = (uint8_t*)malloc(ipPacketDetails->len);
+        memcpy(ipPacketCopy, ipPacketDetails->packet, ipPacketDetails->len);
+        node->ipPacketDetails->packet = ipPacketCopy;
+	
+        node->arpRequestPacketDetails = arpPacketDetails;
 	node->arpReqCounter = 1;
 	node->next = NULL;
 	
@@ -835,6 +991,8 @@ void addToPacketBuffer(struct packet_details* arpPacketDetails,
 			prevIpBufPtr->next = ipBuf;
 		}
 	}
+        printf("\nAdded ICMP(mostly) packet to buffer\n");
+        z_printICMPpacket(_pBuf->packetListHead->ipPacketDetails->packet, _pBuf->packetListHead->ipPacketDetails->len);
 }
  
  /*--------------------------------------------------------------------- 
@@ -865,7 +1023,8 @@ struct packet_details* dl_constructEthernetPacket(struct sr_instance* sr,
                 printf("\n Sending ARP Request\n");
                 z_printARPpacket(arpPacketDetails->packet, arpPacketDetails->len);
 		// 3.C1.2 Add the corresponding packet into the buffer
-		addToPacketBuffer(arpPacketDetails, ipPacket, gatewayIPAddr.s_addr); 
+                
+                addToPacketBuffer(arpPacketDetails, ipPacket, gatewayIPAddr.s_addr); 
 		// 3.C1.3 Return NULL
 		return NULL;
 	} else {
@@ -958,6 +1117,8 @@ void dl_handlePacket(struct sr_instance* sr,
 					
 					// Send this constructed packet
 					sr_send_packet(sr, packetToBeSent, packetToBeSentLen, interfaceToBeSentOn);
+                                        printf("\n SENDING ICMP(mostly) REQUEST/RESPONSE For OTHERS\n");
+                                        z_printICMPpacket(packetToBeSent, packetToBeSentLen);
 				}
 			}
 			break;
@@ -1010,7 +1171,7 @@ void sr_handlepacket(struct sr_instance* sr,
     assert(packet);
     assert(interface);
 
-    printf("*** -> Received packet of length %d \n",len);
+    printf("\n*** -> Received packet of length %d \n",len);
     
     struct sr_ethernet_hdr* ethHdr = (struct sr_ethernet_hdr*)packet;
 	if(ethHdr->ether_type == htons(ETHERTYPE_ARP)) {
@@ -1048,142 +1209,3 @@ void sr_handlepacket(struct sr_instance* sr,
 	}
 	
 }/* end sr_ForwardPacket */
-/*---------------------------------------------------------------------
- * Method: void z_printARPpacket(uint8_t * packet, unsigned int len)
- *
- * Print an ARP packet
- *---------------------------------------------------------------------*/
-void z_printARPpacket(uint8_t * packet, int len) {
-	printf("======== ARP packet ========\n");
-
-	/* ARP packet format
-	 *  http://tools.ietf.org/html/rfc826
-	 Ethernet transmission layer (not necessarily accessible to
-	 the user):
-	 48.bit: Ethernet address of destination
-	 48.bit: Ethernet address of sender
-	 16.bit: Protocol type = ether_type$ADDRESS_RESOLUTION
-	 Ethernet packet data:
-	 16.bit: (ar$hrd) Hardware address space (e.g., Ethernet,
-	 Packet Radio Net.)
-	 16.bit: (ar$pro) Protocol address space.  For Ethernet
-	 hardware, this is from the set of type
-	 fields ether_typ$<protocol>.
-	 8.bit: (ar$hln) byte length of each hardware address
-	 8.bit: (ar$pln) byte length of each protocol address
-	 16.bit: (ar$op)  opcode (ares_op$REQUEST | ares_op$REPLY)
-	 nbytes: (ar$sha) Hardware address of sender of this
-	 packet, n from the ar$hln field.
-	 mbytes: (ar$spa) Protocol address of sender of this
-	 packet, m from the ar$pln field.
-	 nbytes: (ar$tha) Hardware address of target of this
-	 packet (if known).
-	 mbytes: (ar$tpa) Protocol address of target.
-	 */
-
-	//48.bit: Ethernet address of destination
-	printf("Ethernet DST: ");
-	for (int i = 0; i < 6; i++) {
-		printf("%02X ", packet[i]);
-	}
-	printf("\n");
-
-	// 48.bit: Ethernet address of sender
-	printf("Ethernet SRC: ");
-	for (int i = 6; i < 12; i++) {
-		printf("%02X ", packet[i]);
-	}
-	printf("\n");
-
-	// 16.bit: Protocol type
-	printf("Protocal Type: ");
-	for (int i = 12; i < 14; i++) {
-		printf("%02X ", packet[i]);
-	}
-	printf("\n");
-
-	//16.bit: (ar$hrd) Hardware address space (e.g., Ethernet,
-	//                 Packet Radio Net.)
-	printf("Hardware address space: ");
-	for (int i = 14; i < 16; i++) {
-		printf("%02X ", packet[i]);
-	}
-	printf("\n");
-
-	//16.bit: (ar$pro) Protocol address space.  For Ethernet
-	//                 hardware, this is from the set of type
-	//                 fields ether_typ$<protocol>.
-	printf("IP address space: ");
-	for (int i = 16; i < 18; i++) {
-		printf("%02X ", packet[i]);
-	}
-	printf("\n");
-
-	// 8.bit: (ar$hln) byte length of each hardware address
-	printf("byte length of each hardware address: ");
-	for (int i = 18; i < 19; i++) {
-		printf("%02X ", packet[i]);
-	}
-	printf("\n");
-
-	// 8.bit: (ar$pln) byte length of each protocol address
-	printf("byte length of each IP address: ");
-	for (int i = 19; i < 20; i++) {
-		printf("%02X ", packet[i]);
-	}
-	printf("\n");
-
-	// 16.bit: (ar$op)  opcode (ares_op$REQUEST | ares_op$REPLY)
-	printf("opcode (ares_op$REQUEST | ares_op$REPLY): ");
-	for (int i = 20; i < 22; i++) {
-		printf("%02X ", packet[i]);
-	}
-	printf("\n");
-
-	// nbytes: (ar$sha) Hardware address of sender of this
-	//                 packet, n from the ar$hln field.
-	int arhln = 6; //TODO
-	printf("Hardware address of sender of this packet: ");
-	for (int i = 22; i < 22 + arhln; i++) {
-		printf("%02X ", packet[i]);
-	}
-	printf("\n");
-
-	// mbytes: (ar$spa) Protocol address of sender of this
-	//                 packet, m from the ar$pln field.
-	int arpln = 4; //TODO
-	printf("IP address of sender of this packet: ");
-	for (int i = 22 + arhln; i < 22 + arhln + arpln; i++) {
-		printf("%02X ", packet[i]);
-	}
-	printf("(");
-	for (int i = 22 + arhln; i < 22 + arhln + arpln; i++) {
-		printf("%d.", packet[i]);
-	}
-	printf(")");
-	printf("\n");
-
-	// nbytes: (ar$tha) Hardware address of target of this
-	//                 packet (if known).
-	printf("Hardware address of target of this packet: ");
-	for (int i = 22 + arhln + arpln; i < 22 + 2 * arhln + arpln; i++) {
-		printf("%02X ", packet[i]);
-	}
-	printf("\n");
-
-	// mbytes: (ar$tpa) Protocol address of target.
-	printf("IP address of target of this packet: ");
-	for (int i = 22 + 2 * arhln + arpln; i < 22 + 2* arhln + 2* arpln; i++) {
-		printf("%02X ", packet[i]);
-	}
-	printf("(");
-	for (int i = 22 + 2 * arhln + arpln; i < 22 + 2* arhln + 2* arpln; i++) {
-		printf("%d.", packet[i]);
-	}
-	printf(")");
-	printf("%d", 22 + 2* arhln + 2* arpln);
-	printf("\n");
-
-	printf("========  end  ========\n");
-	
-}
