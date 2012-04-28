@@ -417,3 +417,7 @@ struct packet_details* intiate_firewall(uint8_t *ipPacket,unsigned int ipPacketL
     return NULL;
 }
 
+void init()
+{
+    populate_rule_table();
+}
