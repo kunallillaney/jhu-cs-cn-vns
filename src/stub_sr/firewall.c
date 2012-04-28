@@ -24,6 +24,12 @@
 #include "firewall.h"
 #include "sr_protocol.h"
 
+time_t getCurrentTimeInSeconds() {
+	time_t current;
+	time(&current);
+	return current;
+}/* end of method*/
+
 /*--------------------------------------------------------------------- 
  * Method: construct_tuple
  * Scope: Global
@@ -53,8 +59,95 @@ void construct_tuple(tuple* tr, uint8_t* packet)
 
 void add_entry(struct tuple* tr)
 {
-    
+    if(check_entry(tr)==1)
+    {
+        increment_entry(tr);
+        increment_entry(invert_tuple(tr));
+        printf("\n Entry Already Exists and both flows incremented by X \n");
+    }
+    else if(firewall_instance->flow_table_count> (FLOW_TABLE_SIZE-2))
+    {
+        clear_flow_table();
+        if(firewall_instance->flow_table_count> (FLOW_TABLE_SIZE-2))
+        {
+            //call packet
+            return NULL;
+        }
+        else
+        {
+            add_tuple(tr);
+        }
+    }
+    else
+    {
+        add_tuple(tr);
+    }
 }/* end of add_entry */
+
+/*--------------------------------------------------------------------- 
+ * Method: add_tuple
+ * Scope: Global
+ * add 2 tuples in table
+ *
+ *---------------------------------------------------------------------*/
+void add_tuple(struct tuple* tr)
+{
+    firewall_instance->flow_table_count += 2;
+    time_t current_time = getCurrentTimeInSeconds();
+    struct flow_table* flow_table_walker = firewall_instance->head_flow_table;
+    struct flow_table* flow_table_entry = (struct flow_table*)malloc(struct flow_table);
+    flow_table_entry->flowEntry = tr;
+    flow_table_entry->next = NULL;
+    flow_table_entry->timeStamp = current_time;
+    flow_table_entry->ttl = 5;
+    
+    struct flow_table* inv_flow_table_entry = (struct flow_table*)malloc(struct flow_table);
+    inv_flow_table_entry->flowEntry = invert_tuple(tr);
+    inv_flow_table_entry->next = NULL;
+    inv_flow_table_entry->timeStamp = current_time;
+    inv_flow_table_entry->ttl = 5;
+  
+    flow_table_entry->next = inv_flow_table_entry;
+    if(flow_table_walker == NULL){
+        firewall_instance->head_flow_table = flow_table_entry;
+        return;
+    }
+    else
+    {
+        while(flow_table_walker->next)
+        {
+                flow_table_walker = flow_table_walker->next;
+        }
+    
+        flow_table_walker->next = flow_table_entry;
+    }
+}
+
+struct packet_details* send_icmp_refused(uint8_t* packet, unsigned ipLen)
+{
+    
+}
+
+/*--------------------------------------------------------------------- 
+ * Method: increment_entry
+ * Scope: Global
+ * Increment entry in Flow Table by X
+ *
+ *---------------------------------------------------------------------*/
+void increment_entry(struct tuple* tr)
+{
+    struct flow_table* flow_table_walker = firewall_instance->head_flow_table;
+    while(flow_table_walker->next)
+    {
+        if(memcmp(&(flow_table_walker->flowEntry),tr,sizeof(struct tuple))==0)
+        {
+            flow_table_walker->ttl += 5;
+            return NULL;
+        }
+         flow_table_walker = flow_table_walker->next;   
+    }
+}/* end of increment_entry*/
+
 
 /*--------------------------------------------------------------------- 
  * Method: check_entry
@@ -66,7 +159,7 @@ void add_entry(struct tuple* tr)
 
 int check_entry(struct tuple* tr)
 {
-    struct flow_table flow_table_walker = firewall_instance->head_flow_table;
+    struct flow_table* flow_table_walker = firewall_instance->head_flow_table;
     while(flow_table_walker->next)
     {
         if(memcmp(&(flow_table_walker->flowEntry),tr,sizeof(struct tuple))==0)
@@ -86,8 +179,41 @@ int check_entry(struct tuple* tr)
 
 void clear_flow_table()
 {
+    struct flow_table* flow_table_walker = firewall_instance->head_flow_table;
+    time_t t;
+    struct flow_table* prev_walker = flow_table_walker;
     
+    while(flow_table_walker->next)
+    {
+        if((getCurrentTimeInSeconds(),flow_table_walker->timeStamp) > flow_table_walker->ttl)
+        {
+            firewall_instance->flow_table_count -=1;
+            prev_walker->next = flow_table_walker->next;
+        }
+        prev_walker = flow_table_walker;
+        flow_table_walker = flow_table_walker->next;   
+    }
 }/* end of clear_flow_table*/
+
+/*--------------------------------------------------------------------- 
+ * Method: invert_tuple
+ * Scope: Global
+ * 
+ * Invert tuple
+ *
+ *---------------------------------------------------------------------*/
+
+struct tuple* invert_tuple(struct tuple* tr) 
+{
+    struct tuple* opposite_tuple;
+    opposite_tuple->src_ip = tr->dst_ip;
+    opposite_tuple->dst_ip = tr->src_ip;
+    opposite_tuple->src_port = tr->dst_port;
+    opposite_tuple->dst_port = tr->src_port;
+    opposite_tuple->protocol = opposite_tuple->protocol;
+    
+    return opposite_tuple;
+}/* end of invert_tuple */
 
 /*--------------------------------------------------------------------- 
  * Method: connection_refused
