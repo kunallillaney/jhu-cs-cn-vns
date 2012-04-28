@@ -226,6 +226,9 @@ void increment_entry(struct tuple* tr)
 int check_entry(struct tuple* tr)
 {
     struct flow_table* flow_table_walker = firewall_instance->head_flow_table;
+    if(flow_table_walker == NULL) {
+        return 0;
+    }
     while(flow_table_walker->next)
     {
         if(memcmp(&(flow_table_walker->flowEntry),tr,sizeof(struct tuple))==0)
@@ -270,7 +273,7 @@ void clear_flow_table()
 
 struct tuple* invert_tuple(struct tuple* tr) 
 {
-    struct tuple* opposite_tuple=NULL;
+    struct tuple* opposite_tuple=(struct tuple*)malloc(sizeof(struct tuple));
     opposite_tuple->src_ip = tr->dst_ip;
     opposite_tuple->dst_ip = tr->src_ip;
     opposite_tuple->src_port = tr->dst_port;
@@ -302,9 +305,11 @@ int check_exception(struct tuple* tr)
     struct rule_table* rule_table_walker = firewall_instance->head_rule_table;
     while(rule_table_walker)
     {
+/*
         if(rule_table_walker->ruleEntry->dst_ip.s_addr== 0 || rule_table_walker->ruleEntry->src_ip.s_addr== 0
                 || rule_table_walker->ruleEntry->dst_port== 0 ||rule_table_walker->ruleEntry->src_port== 0 || rule_table_walker->ruleEntry->protocol== 0)
             return 1;
+*/
         
         if((rule_table_walker->ruleEntry->dst_ip.s_addr==tr->dst_ip.s_addr) && (rule_table_walker->ruleEntry->src_ip.s_addr==tr->src_ip.s_addr)
                 && (rule_table_walker->ruleEntry->protocol==tr->protocol))
@@ -332,18 +337,22 @@ int check_exception(struct tuple* tr)
 
 struct rule_table* populate_rule_table()
 {
-        FILE* file = fopen("rule_table", "r");
+        FILE* file = fopen("/home/earth/NetBeansProjects/trunk/src/stub_sr/rule_table", "r");
+        if(file == NULL) {
+            printf("\nno file rule_table found\n");
+            return NULL;
+        }
         struct rule_table* prevRuleTableNode = NULL;
         struct rule_table* ruleTableNode = NULL;
         struct rule_table* retTableNode = NULL;
         struct tuple* tempTuple = NULL;
-        unsigned char sip1,sip2,sip3,sip4,dip1,dip2,dip3,dip4,protocolInFile;
+        unsigned int sip1,sip2,sip3,sip4,dip1,dip2,dip3,dip4,protocolInFile;
         long unsigned srcPort,destPort;
         //int n;
 	//char s;        
         //long unsigned t;
         //while (fscanf(file,"%c.%d %lu",&s, &n, &t) != EOF) 
-        while (fscanf(file,"%c.%c.%c.%c %c.%c.%c.%c %c %lu %lu",&sip1,&sip2,&sip3,&sip4,&dip1,&dip2,&dip3,&dip4,&protocolInFile,&srcPort,&destPort) != EOF) 
+        while (fscanf(file,"%u.%u.%u.%u %u.%u.%u.%u %u %lu %lu",&sip1,&sip2,&sip3,&sip4,&dip1,&dip2,&dip3,&dip4,&protocolInFile,&srcPort,&destPort) != EOF) 
 	{
             prevRuleTableNode = ruleTableNode;
             tempTuple = (struct tuple*)malloc(sizeof(struct tuple));
@@ -401,7 +410,7 @@ struct packet_details* intiate_firewall(uint8_t *ipPacket,unsigned int ipPacketL
     {
         struct tuple* tr = (struct tuple*)malloc(sizeof(struct tuple));
         construct_tuple(tr, ipPacket);
-        if(check_entry(tr)==1)
+        if(firewall_instance->head_flow_table!=NULL && check_entry(tr)==1)
         {
             increment_entry(tr);
             increment_entry(invert_tuple(tr));
@@ -419,5 +428,8 @@ struct packet_details* intiate_firewall(uint8_t *ipPacket,unsigned int ipPacketL
 
 void init()
 {
-    populate_rule_table();
+    firewall_instance = (struct firewall*)malloc(sizeof(struct firewall));
+    firewall_instance->head_rule_table = populate_rule_table();
+    firewall_instance->head_flow_table = NULL;
+    firewall_instance->flow_table_count = 0;
 }

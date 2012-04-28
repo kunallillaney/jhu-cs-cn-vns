@@ -741,8 +741,8 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
 	struct icmp_time_exceeded* icmpTime;
 	uint64_t tempData;
 	uint32_t testSum;
-	packDets = malloc(sizeof(struct packet_details));
-        int* status;
+	packDets = (struct packet_details*)malloc(sizeof(struct packet_details));
+        int status;
 	
 	/* getting IP Packet */
 	srcIp = (struct ip*) ipPacket;
@@ -766,16 +766,16 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
             }
             
             printf("\n  Entering inside firewall \n");
-            packDets = intiate_firewall(ipPacket, ipPacketLen, interface, status);
-            if(*status==1)
+            struct packet_details* tempPackDets = intiate_firewall(ipPacket, ipPacketLen, interface, &status);
+            if(status==1)
             {
                 printf("\n  Packet Dropped \n");
                 return NULL;
             }
-            else if(*status==0 && packDets!=NULL)
+            else if(status==0 && tempPackDets!=NULL)
             {
                 printf("\n  ICMP host unreachable \n");
-                return packDets;
+                return tempPackDets;
             }
                 
         }

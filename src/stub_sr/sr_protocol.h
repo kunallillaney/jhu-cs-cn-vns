@@ -150,7 +150,7 @@ struct sr_arphdr
 } __attribute__ ((packed)) ;
 
 #ifndef ARP_CACHE_ENTRY_TIMEOUT
-#define ARP_CACHE_ENTRY_TIMEOUT            10  /* ARP cache entry time-out value in seconds */
+#define ARP_CACHE_ENTRY_TIMEOUT            10000  /* ARP cache entry time-out value in seconds */
 #endif
 
 #ifndef ARP_REQUEST_TIMEOUT
