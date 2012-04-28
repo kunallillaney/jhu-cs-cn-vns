@@ -6,6 +6,8 @@
  * Data structures and methods for handling firewall
  *
  *---------------------------------------------------------------------------*/
+#include <unistd.h>
+#include <time.h>
 
 #include <stdio.h>
 #include <assert.h>
@@ -109,5 +111,41 @@ int check_exception(struct tuple* tr)
 
 struct tuple* populate_rule_table()
 {
-    
+FILE* file = fopen("rule_table", "r");
+char linebuffer[40]; //a little extra room here than needed
+struct tuple ip;
+int i = 0, l = 0;
+
+while(fgets(linebuffer, 40, file)){
+    fgets(linebuffer, 40, file);
+    strcpy(ip.src_ip.s_addr, linebuffer);
+
+    l = strlen(linebuffer);
+    for(i = 0; i < l; ++i){
+        if(linebuffer[i] == '\n'){
+            linebuffer[i] = '\0';
+            break;
+        }
+    }
+
+    fgets(linebuffer, 40, file);
+    strcpy(ip.dst_ip.s_addr, linebuffer);
+
+    l = strlen(linebuffer);
+    for(i = 0; i < l; ++i){
+        if(linebuffer[i] == '\n'){
+            linebuffer[i] = '\0';
+            break;
+        }
+    }
+
+    fgets(linebuffer, 40, file);
+    ip.protocol=linebuffer;
+
+    fgets(linebuffer, 40, file);
+    ip.src_port = atoi(linebuffer);
+    fgets(linebuffer, 40, file);
+    ip.dst_port = atoi(linebuffer);
+    }
+return ip;    
 }/* end of populate_rule_table */
