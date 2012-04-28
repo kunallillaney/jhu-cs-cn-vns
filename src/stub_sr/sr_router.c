@@ -170,7 +170,7 @@ struct packet_details* dl_handleARPPacket(struct sr_instance* sr,uint8_t * packe
 }
 
 
-uint16_t computeCheckSum(uint16_t *buff, uint16_t len_header)
+uint16_t computeCheckSum(uint8_t *buff, uint16_t len_header)
 {
        uint16_t word16;
        uint32_t sum=0;
@@ -193,7 +193,7 @@ uint16_t computeCheckSum(uint16_t *buff, uint16_t len_header)
        return ((uint16_t) sum);
 }
 
-uint16_t verifyCheckSum(uint16_t *buff, uint16_t len_header, uint16_t testSum)
+uint16_t verifyCheckSum(uint8_t *buff, uint16_t len_header, uint16_t testSum)
 {
        uint16_t word16;
        uint32_t sum=0;
@@ -361,7 +361,7 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
 	/* checking ip checksum */
 	testSum = srcIp->ip_sum;
 	srcIp->ip_sum = 0x00;
-	if(verifyCheckSum((uint16_t*)ipPacket, sizeof(struct ip), testSum) == 0)
+	if(verifyCheckSum((uint8_t*)ipPacket, sizeof(struct ip), testSum) == 0)
 	{
 		printf("INFO : Dropping Packet for wrong checksum in IP");
 		return NULL;
@@ -395,7 +395,7 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
 		
 		/* computing icmp checksum */
 		icmpTime->icmp_sum = 0x0;
-		icmpTime->icmp_sum = computeCheckSum((uint16_t*)icmpTime, sizeof(struct icmp));
+		icmpTime->icmp_sum = computeCheckSum((uint8_t*)icmpTime, sizeof(struct icmp));
 		
 		/* setting src and dst address*/
 		tempAddr = srcIp->ip_dst;
@@ -404,7 +404,7 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
 		
 		/* computing ip checksum */
 		srcIp->ip_sum = 0x0;
-		srcIp->ip_sum = computeCheckSum((uint16_t*)ipPacket, sizeof(struct ip));
+		srcIp->ip_sum = computeCheckSum((uint8_t*)ipPacket, sizeof(struct ip));
 		packDets->packet = ipPacket;	
 		packDets->len = sizeof(struct ip) + sizeof(struct icmp_time_exceeded);
 		return packDets;
@@ -423,7 +423,7 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
 		/* checking ICMP checksum */
 		testSum = srcIcmp->icmp_sum;
 		srcIcmp->icmp_sum = 0x00;
-		if(verifyCheckSum((uint16_t*)srcIcmp, sizeof(struct icmp), testSum) == 0)
+		if(verifyCheckSum((uint8_t*)srcIcmp, sizeof(struct icmp), testSum) == 0)
 		{
 			printf("INFO : Dropping Packet for wrong checksum in ICMP");
 			return NULL;
@@ -435,7 +435,7 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
 	
 		/* computing icmp checksum */
 		srcIcmp->icmp_sum = 0x0;
-		srcIcmp->icmp_sum = computeCheckSum((uint16_t*)srcIcmp, sizeof(struct icmp));
+		srcIcmp->icmp_sum = computeCheckSum((uint8_t*)srcIcmp, sizeof(struct icmp));
 		
 		/* setting src and dst address*/
 		tempAddr = srcIp->ip_dst;
@@ -444,7 +444,7 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
 		
 		/* computing ip checksum */
 		srcIp->ip_sum = 0x0;
-		srcIp->ip_sum = computeCheckSum((uint16_t*)ipPacket, sizeof(struct ip));
+		srcIp->ip_sum = computeCheckSum((uint8_t*)ipPacket, sizeof(struct ip));
 	
 		packDets->packet = ipPacket;
 		packDets->len = ipPacketLen;
@@ -857,7 +857,8 @@ void sr_handlepacket(struct sr_instance* sr,
 		ipBufPtr = ipBufPtr->next;
 	}
 	
-}/* end sr_ForwardPacket *//*---------------------------------------------------------------------
+}/* end sr_ForwardPacket */
+/*---------------------------------------------------------------------
  * Method: void z_printARPpacket(uint8_t * packet, unsigned int len)
  *
  * Print an ARP packet
