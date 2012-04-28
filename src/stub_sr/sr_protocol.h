@@ -216,4 +216,12 @@ struct arp_cache
 	time_t			creationTime;
 	struct arp_cache* next;
 } __attribute__ ((packed)) ;
+
+// ICMP packet structure
+struct transport_layer
+{
+	uint16_t src_port;	/* Source Port */
+	uint16_t dst_port;	/* destination port */
+}__attribute__ ((packed));
+
 #endif /* -- SR_PROTOCOL_H -- */
