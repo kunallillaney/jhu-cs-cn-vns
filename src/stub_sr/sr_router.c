@@ -43,8 +43,8 @@ void addIntoARPCache(uint32_t ipAddr, unsigned char* macAddr) {
 		// This IP was not found in the cache. So add a new node
 		struct arp_cache* arpCacheNode = (struct arp_cache*)malloc(sizeof(struct arp_cache));
 		arpCacheNode->ip = ipAddr;
-		strncpy((char*)arpCachePtr->mac, (char*)macAddr, ETHER_ADDR_LEN);
-		arpCachePtr->next = NULL;
+		strncpy((char*)arpCacheNode->mac, (char*)macAddr, ETHER_ADDR_LEN);
+		arpCacheNode->next = NULL;
 		if(_arpCache == NULL) {
 			// First Node
 			_arpCache = arpCacheNode;
@@ -81,7 +81,7 @@ void dl_local_handleARPResponse(struct sr_instance* sr,
 				// NOTE: Here we need to use memcpy instead of strncpy because the data type for MAC addresses is different in "sr_if" and EthernetHeader structures
 				memcpy(tempEthHdr.ether_dhost, macAddr, ETHER_ADDR_LEN);
 				memcpy(tempEthHdr.ether_shost, sr_get_interface(sr, bufPtr->arpRequestPacketDetails->interface)->addr, ETHER_ADDR_LEN);
-				ethHdr->ether_type = ETHERTYPE_IP; // TODO: For now, assume that only Network Layer packets buffered!
+				ethHdr->ether_type = htons(ETHERTYPE_IP); // TODO: For now, assume that only Network Layer packets buffered!
 				
 				unsigned int fullPacketLen = sizeof(tempEthHdr) + bufPtr->ipPacketDetails->len;
 				uint8_t* fullPacket = (uint8_t*)malloc(fullPacketLen);
@@ -92,9 +92,9 @@ void dl_local_handleARPResponse(struct sr_instance* sr,
 				sr_send_packet(sr, fullPacket, fullPacketLen, bufPtr->arpRequestPacketDetails->interface);
 				
 				// free all memory
-				free(bufPtr->ipPacketDetails->packet);
-				free(bufPtr->arpRequestPacketDetails->packet);
-				free(fullPacket);
+				//free(bufPtr->ipPacketDetails->packet);
+				//free(bufPtr->arpRequestPacketDetails->packet);
+				//free(fullPacket);
 				
 				struct arp_req_details* tempPtr = bufPtr;
 				bufPtr = bufPtr->next;
@@ -121,32 +121,29 @@ void dl_local_handleARPResponse(struct sr_instance* sr,
 struct packet_details* dl_handleARPPacket(struct sr_instance* sr,uint8_t * packet/* lent */,
         unsigned int len,char* interface) 
 {
-		printf("inside arp\n");
 		struct sr_ethernet_hdr* e_hdr = (struct sr_ethernet_hdr*)packet;
 		struct sr_arphdr*       a_hdr = (struct sr_arphdr*)(packet + sizeof(struct sr_ethernet_hdr));
 		struct sr_if* iface = sr_get_interface(sr, interface);
-		printf("Operation changed=%02x\n",a_hdr->ar_op);
 		int type = -1;
 		if(a_hdr->ar_op == htons(ARP_REQUEST)) {
 			type = 0;
-		} else if(a_hdr->ar_op == htons(ARP_REPLY)) {
+                        printf("\nReceived ARP Request\n");
+                        z_printARPpacket(packet, len);
+                } else if(a_hdr->ar_op == htons(ARP_REPLY)) {
+                        printf("\nReceived ARP Response\n");
+                        z_printARPpacket(packet, len);
 			type = 1;
 		}
 		switch(type){
 			case 0:
 				if ((a_hdr->ar_tip == iface->ip )) {
-					printf("\nInside if of dl_handleARPPacket::ARP_REQUEST\n");
+					addIntoARPCache(a_hdr->ar_sip,a_hdr->ar_sha);
 					memcpy(e_hdr->ether_dhost,e_hdr->ether_shost,ETHER_ADDR_LEN); /* destination ethernet address */
 					a_hdr->ar_op=htons(ARP_REPLY);
 					memcpy(a_hdr->ar_tha,a_hdr->ar_sha,ETHER_ADDR_LEN);
 					a_hdr->ar_tip=a_hdr->ar_sip;
 					memcpy(e_hdr->ether_shost, iface->addr, ETHER_ADDR_LEN);// Source Hardware Address
 					memcpy(a_hdr->ar_sha, iface->addr, ETHER_ADDR_LEN);// Source Hardware Address
-					printf("Interface MAC address =  [%s]",iface->addr);
-					for (int i = 0; i < 6; i++) {
-						printf("%02X ", iface->addr[i]);
-					}
-					printf("\n");
 					
 					a_hdr->ar_sip=iface->ip; 
 					// Construct a packet buffer = EthernetHeader + ArpHeader
@@ -190,7 +187,7 @@ uint16_t computeCheckSum(uint8_t *buff, uint16_t len_header)
        /* one's complement the result */
        sum = ~sum;
 
-       return ((uint16_t) sum);
+       return htons(((uint16_t) sum));
 }
 
 uint16_t verifyCheckSum(uint8_t *buff, uint16_t len_header, uint16_t testSum)
@@ -213,7 +210,7 @@ uint16_t verifyCheckSum(uint8_t *buff, uint16_t len_header, uint16_t testSum)
        /* one's complement the result */
        sum = ~sum;
        
-       if(testSum == (uint16_t)sum)
+       if(testSum == htons((uint16_t)sum))
 			return 1;
 		else 
 			return 0;
@@ -363,14 +360,14 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
 	srcIp->ip_sum = 0x00;
 	if(verifyCheckSum((uint8_t*)ipPacket, sizeof(struct ip), testSum) == 0)
 	{
-		printf("INFO : Dropping Packet for wrong checksum in IP");
+		printf("\nINFO : Dropping Packet for wrong checksum in IP");
 		return NULL;
 	}
 	
 	/* checking ip ttl */
 	if((srcIp->ip_ttl == 0x0) || (sr_check_self(sr, srcIp->ip_dst.s_addr)==1))
 	{
-		printf("INFO : Dropping Packet  for ttl=0 in IP");
+		printf("\nINFO : Dropping Packet  for ttl=0 in IP");
 			
 		icmpTime = (struct icmp_time_exceeded*)(ipPacket + sizeof(struct ip));
 		memcpy(&tempData, icmpTime, sizeof(uint64_t));
@@ -401,6 +398,9 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
 		tempAddr = srcIp->ip_dst;
 		srcIp->ip_dst = srcIp->ip_src;
 		srcIp->ip_src = tempAddr;
+                
+                /* Setting ttl field to 256*/
+                srcIp->ip_ttl = 0xFF;
 		
 		/* computing ip checksum */
 		srcIp->ip_sum = 0x0;
@@ -417,7 +417,7 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
 	inSrif = sr_get_interface(sr, interface);
 	if(srcIp->ip_p == 0x01 && srcIp->ip_dst.s_addr == inSrif->ip)
 	{
-		
+	
 		srcIcmp = (struct icmp*)(ipPacket + sizeof(struct ip));
 	
 		/* checking ICMP checksum */
@@ -425,7 +425,7 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
 		srcIcmp->icmp_sum = 0x00;
 		if(verifyCheckSum((uint8_t*)srcIcmp, sizeof(struct icmp), testSum) == 0)
 		{
-			printf("INFO : Dropping Packet for wrong checksum in ICMP");
+			printf("\nINFO : Dropping Packet for wrong checksum in ICMP");
 			return NULL;
 		}
 	
@@ -441,6 +441,9 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
 		tempAddr = srcIp->ip_dst;
 		srcIp->ip_dst = srcIp->ip_src;
 		srcIp->ip_src = tempAddr;
+                
+                /* Setting ttl field to 256*/
+                srcIp->ip_ttl = 0xFF;
 		
 		/* computing ip checksum */
 		srcIp->ip_sum = 0x0;
@@ -482,11 +485,11 @@ void getGatewayBasedOnDestinationIP(struct sr_instance* sr, struct in_addr destI
 	while(tempRTptr != NULL) {
 		if(tempRTptr->dest.s_addr == 0) {	// TODO: Check if this works. Use Default Gateway if no other destination IP matches.
 			*retGatewayIPAddr = tempRTptr->gw;
-			retRoutingInterface = tempRTptr->interface;
+			strncpy(retRoutingInterface, tempRTptr->interface, sr_IFACE_NAMELEN);
 		}
 		if(tempRTptr->dest.s_addr == destIP.s_addr) {
 			*retGatewayIPAddr = tempRTptr->gw;
-			retRoutingInterface = tempRTptr->interface;
+			strncpy(retRoutingInterface, tempRTptr->interface, sr_IFACE_NAMELEN);
 			break;
 		}
 		tempRTptr = tempRTptr->next;
@@ -560,14 +563,14 @@ struct packet_details* dl_constructARP(struct sr_instance* sr, struct in_addr ip
 		eth->ether_dhost[i]=0xFF;
 	} 
 	memcpy(eth->ether_shost, interfaceStructure->addr, ETHER_ADDR_LEN);
-	eth->ether_type=ETHERTYPE_ARP; 				// 16.bit: Protocol type
+	eth->ether_type=htons(ETHERTYPE_ARP); 				// 16.bit: Protocol type
 	
 	// Set values in ARP Packet
-	arp->ar_hrd=ARPHDR_ETHER; 					//16.bit: (ar$hrd) Hardware address space
-	arp->ar_pro=ETHERTYPE_IP; 					//16.bit: (ar$pro) Protocol address space.  
+	arp->ar_hrd=htons(ARPHDR_ETHER); 					//16.bit: (ar$hrd) Hardware address space
+	arp->ar_pro=htons(ETHERTYPE_IP); 					//16.bit: (ar$pro) Protocol address space.  
 	arp->ar_hln=ETHER_ADDR_LEN; 				// 8.bit: (ar$hln) byte length of each hardware address
 	arp->ar_pln=0x04; 							// TODO: Hardcoded for now. 8.bit: (ar$pln) byte length of each protocol address
-	arp->ar_op=ARP_REQUEST;	 					// 16.bit: (ar$op)  opcode (ares_op$REQUEST | ares_op$REPLY)
+	arp->ar_op=htons(ARP_REQUEST);	 					// 16.bit: (ar$op)  opcode (ares_op$REQUEST | ares_op$REPLY)
 	memcpy(arp->ar_sha, interfaceStructure->addr, ETHER_ADDR_LEN); // Source Hardware Address
 	arp->ar_sip = interfaceStructure->ip;					// Source IP Address
 	for (int i=0;i<ETHER_ADDR_LEN;i++){ 					// nbytes: (ar$tha) Hardware address of target of this packet (if known).
@@ -657,7 +660,7 @@ struct packet_details* dl_constructEthernetPacket(struct sr_instance* sr,
 												struct packet_details *ipPacket)
 {
 	// 1. From the routing table determine which gateway & eth interface should be used to send the packet
-	struct ip* ipHdr = (struct ip*)ipPacket;
+	struct ip* ipHdr = (struct ip*)ipPacket->packet;
 	struct sr_ethernet_hdr* ethHdr = NULL;
 	struct in_addr gatewayIPAddr;
 	char routingInterface[sr_IFACE_NAMELEN];
@@ -670,6 +673,8 @@ struct packet_details* dl_constructEthernetPacket(struct sr_instance* sr,
 		// 3.C1.1 Send ARP request
 		struct packet_details* arpPacketDetails = dl_constructARP(sr, gatewayIPAddr, routingInterface);
 		sr_send_packet(sr, arpPacketDetails->packet, arpPacketDetails->len, arpPacketDetails->interface);
+                printf("\n Sending ARP Request\n");
+                z_printARPpacket(arpPacketDetails->packet, arpPacketDetails->len);
 		// 3.C1.2 Add the corresponding packet into the buffer
 		addToPacketBuffer(arpPacketDetails, ipPacket, gatewayIPAddr.s_addr); 
 		// 3.C1.3 Return NULL
@@ -681,7 +686,7 @@ struct packet_details* dl_constructEthernetPacket(struct sr_instance* sr,
 		// NOTE: Here we need to use memcpy instead of strncpy because the data type for MAC addresses is different in "sr_if" and EthernetHeader structures
 		memcpy(ethHdr->ether_dhost, macAddr, ETHER_ADDR_LEN);
 		memcpy(ethHdr->ether_shost, sr_get_interface(sr, routingInterface)->addr, ETHER_ADDR_LEN);
-		ethHdr->ether_type = ETHERTYPE_IP; // TODO: For now, assume that only Network Layer will call this function!
+		ethHdr->ether_type = htons(ETHERTYPE_IP); // TODO: For now, assume that only Network Layer will call this function!
 	}
 	
 	// 4. Ethernet packet = Ethernet Header + IP Packet
@@ -724,25 +729,21 @@ void dl_handlePacket(struct sr_instance* sr,
 	}
 	switch(type) {
 		case 0:
-			printf("\nARP Request recieved\n");
 			// Pass the Ethernet header and the data part of the packet to the ARP Protocol implementor
-			z_printARPpacket(packet, len);
 			arpPacket = dl_handleARPPacket(sr, packet, len, interface);
 			if(arpPacket == NULL) {
 				// No job to do as the packet may not be for this router OR this may be a ARP response.
 				printf("\n dl_handleARPPacket returned NULL\n");
 			} else {
 				// Send this packet over the interface same as that of the one from which the router recieved this (interface variable)
-				printf("\n dl_handleARPPacket returned not NULL\n");
 				uint8_t* packetToBeSent = arpPacket->packet;
 				unsigned int packetToBeSentLen = arpPacket->len;
 				
 				// Free all the objects
 				free(arpPacket);
 				
-				printf("\n packetToBeSentLen=%d\n", packetToBeSentLen);
 				sr_send_packet(sr, packetToBeSent, packetToBeSentLen, interface);
-				printf("\n packet sent \n");
+				printf("\n Sending ARP Response \n");
 				z_printARPpacket(packetToBeSent, packetToBeSentLen);
 			}
 			break;
@@ -824,11 +825,11 @@ void sr_handlepacket(struct sr_instance* sr,
     
     struct sr_ethernet_hdr* ethHdr = (struct sr_ethernet_hdr*)packet;
 	if(ethHdr->ether_type == htons(ETHERTYPE_ARP)) {
-		printf("ETHERTYPE_ARP recieved");
+		printf("\nETHERTYPE_ARP recieved\n");
 	} else if(ethHdr->ether_type == htons(ETHERTYPE_IP)) {
-		printf("ETHERTYPE_IP recieved");
+		printf("\nETHERTYPE_IP recieved\n");
 	} else {
-		printf("Something else recieved~!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+		printf("\nSomething else recieved~!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
 	}
     
     
