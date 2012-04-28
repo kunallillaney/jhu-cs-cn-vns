@@ -202,7 +202,9 @@ void dl_local_handleARPResponse(struct sr_instance* sr,
 				memcpy(fullPacket+sizeof(tempEthHdr), bufPtr->ipPacketDetails->packet, bufPtr->ipPacketDetails->len);
 				
 				// We can use the same interface that was used to send the ARP request.
-				sr_send_packet(sr, fullPacket, fullPacketLen, bufPtr->arpRequestPacketDetails->interface);
+                                printf("\nFROM BUFFER, SENDING ICMP(mostly) REQUEST/RESPONSE FOR OTHERS\n");
+                                z_printICMPpacket(bufPtr->ipPacketDetails->packet, bufPtr->ipPacketDetails->len);
+                                sr_send_packet(sr, fullPacket, fullPacketLen, bufPtr->arpRequestPacketDetails->interface);
 				
 				// free all memory
 				//free(bufPtr->ipPacketDetails->packet);
@@ -538,7 +540,8 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
 	inSrif = sr_get_interface(sr, interface);
 	if(srcIp->ip_p == 0x01 && srcIp->ip_dst.s_addr == inSrif->ip)
 	{
-	
+                printf("\nRECIEVED ICMP REQUEST For MYSELF\n");
+                z_printICMPpacket(ipPacket, ipPacketLen);
 		srcIcmp = (struct icmp*)(ipPacket + sizeof(struct ip));
 	
 		/* checking ICMP checksum */
@@ -578,7 +581,8 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
 	}
 	
 	//All normal Cases
-		
+	printf("\n RECIEVED ICMP(mostly) REQUEST/RESPONSE For OTHERS\n");
+        z_printICMPpacket(ipPacket, ipPacketLen);	
 	/* computing ip checksum */
 	srcIp->ip_sum = 0x0;
 	srcIp->ip_sum = computeCheckSum((uint16_t*)ipPacket, sizeof(struct ip));
@@ -885,6 +889,8 @@ void dl_handlePacket(struct sr_instance* sr,
 					
 					// Send this constructed packet
 					sr_send_packet(sr, packetToBeSent, packetToBeSentLen, interfaceToBeSentOn);
+                                        printf("\n SENDING ICMP(mostly) REQUEST/RESPONSE For OTHERS\n");
+                                        z_printICMPpacket(packetToBeSent, packetToBeSentLen);
 				}
 			}
 			break;
@@ -937,7 +943,7 @@ void sr_handlepacket(struct sr_instance* sr,
     assert(packet);
     assert(interface);
 
-    printf("*** -> Received packet of length %d \n",len);
+    printf("\n*** -> Received packet of length %d \n",len);
     
     struct sr_ethernet_hdr* ethHdr = (struct sr_ethernet_hdr*)packet;
 	if(ethHdr->ether_type == htons(ETHERTYPE_ARP)) {
