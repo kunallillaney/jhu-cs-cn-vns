@@ -22,6 +22,7 @@
 #include "sr_rt.h"
 #include "sr_router.h"
 #include "sr_protocol.h"
+#include "firewall.h"
 
 // Two Global Variables
 
@@ -741,6 +742,7 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
 	uint64_t tempData;
 	uint32_t testSum;
 	packDets = malloc(sizeof(struct packet_details));
+        int* status;
 	
 	/* getting IP Packet */
 	srcIp = (struct ip*) ipPacket;
@@ -753,6 +755,25 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
 		printf("\nINFO : Dropping Packet for wrong checksum in IP");
 		return NULL;
 	}
+        
+        //Calling Firewall
+        if(FIREWALL_ENABLED==1)
+        {
+            printf("\n  Entering inside firewall \n");
+            packDets = intiate_firewall(ipPacket, ipPacketLen, interface, status);
+            if(*status==1)
+            {
+                printf("\n  Packet Dropped \n");
+                return NULL;
+            }
+            else if(*status==0 && packDets!=NULL)
+            {
+                printf("\n  ICMP host unreachable \n");
+                return packDets;
+            }
+                
+        }
+        
 	
         struct sr_if* interfaceStructure = sr_get_interface(sr, interface);
         
