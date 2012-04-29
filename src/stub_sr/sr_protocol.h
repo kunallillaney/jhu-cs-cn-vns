@@ -39,14 +39,14 @@
 
 #include <sys/types.h>
 #include <arpa/inet.h>
- 
+
 #ifndef IP_MAXPACKET
 #define IP_MAXPACKET 65535
 #endif
 
 /* FIXME
  * ohh how lame .. how very, very lame... how can I ever go out in public
- * again?! /mc 
+ * again?! /mc
  */
 #ifndef __LITTLE_ENDIAN
 #define __LITTLE_ENDIAN 1
@@ -81,29 +81,29 @@
 struct ip
   {
 #if __BYTE_ORDER == __LITTLE_ENDIAN
-    unsigned int ip_hl:4;		/* header length */
-    unsigned int ip_v:4;		/* version */
+    unsigned int ip_hl:4;       /* header length */
+    unsigned int ip_v:4;        /* version */
 #elif __BYTE_ORDER == __BIG_ENDIAN
-    unsigned int ip_v:4;		/* version */
-    unsigned int ip_hl:4;		/* header length */
+    unsigned int ip_v:4;        /* version */
+    unsigned int ip_hl:4;       /* header length */
 #else
-#error "Byte ordering ot specified " 
-#endif 
-    uint8_t ip_tos;			/* type of service */
-    uint16_t ip_len;			/* total length */
-    uint16_t ip_id;			/* identification */
-    uint16_t ip_off;			/* fragment offset field */
-#define	IP_RF 0x8000			/* reserved fragment flag */
-#define	IP_DF 0x4000			/* dont fragment flag */
-#define	IP_MF 0x2000			/* more fragments flag */
-#define	IP_OFFMASK 0x1fff		/* mask for fragmenting bits */
-    uint8_t ip_ttl;			/* time to live */
-    uint8_t ip_p;			/* protocol */
-    uint16_t ip_sum;			/* checksum */
-    struct in_addr ip_src, ip_dst;	/* source and dest address */
+#error "Byte ordering ot specified "
+#endif
+    uint8_t ip_tos;         /* type of service */
+    uint16_t ip_len;            /* total length */
+    uint16_t ip_id;         /* identification */
+    uint16_t ip_off;            /* fragment offset field */
+#define IP_RF 0x8000            /* reserved fragment flag */
+#define IP_DF 0x4000            /* dont fragment flag */
+#define IP_MF 0x2000            /* more fragments flag */
+#define IP_OFFMASK 0x1fff       /* mask for fragmenting bits */
+    uint8_t ip_ttl;         /* time to live */
+    uint8_t ip_p;           /* protocol */
+    uint16_t ip_sum;            /* checksum */
+    struct in_addr ip_src, ip_dst;  /* source and dest address */
   } __attribute__ ((packed)) ;
 
-/* 
+/*
  *  Ethernet packet header prototype.  Too many O/S's define this differently.
  *  Easy enough to solve that and define it here.
  */
@@ -136,7 +136,7 @@ struct sr_ethernet_hdr
 #define ARP_REQUEST 1
 #define ARP_REPLY   2
 
-struct sr_arphdr 
+struct sr_arphdr
 {
     unsigned short  ar_hrd;             /* format of hardware address   */
     unsigned short  ar_pro;             /* format of protocol address   */
@@ -150,7 +150,7 @@ struct sr_arphdr
 } __attribute__ ((packed)) ;
 
 #ifndef ARP_CACHE_ENTRY_TIMEOUT
-#define ARP_CACHE_ENTRY_TIMEOUT            10000  /* ARP cache entry time-out value in seconds */
+#define ARP_CACHE_ENTRY_TIMEOUT            10  /* ARP cache entry time-out value in seconds */
 #endif
 
 #ifndef ARP_REQUEST_TIMEOUT
@@ -161,67 +161,67 @@ struct sr_arphdr
 struct packet_details
 {
 #ifndef sr_IFACE_NAMELEN
-#define sr_IFACE_NAMELEN 32				// TODO: This constant is duplicated from sr_if.h. Remove this duplication if possible!
+#define sr_IFACE_NAMELEN 32             // TODO: This constant is duplicated from sr_if.h. Remove this duplication if possible!
 #endif
-    uint8_t*		packet;          	/* Packet to be returned to the above layer */
-    unsigned int 	len;             	/* length of the packet   */
-    char 			interface[sr_IFACE_NAMELEN];          /* interface if available/known - not mandatory field */
+    uint8_t*        packet;             /* Packet to be returned to the above layer */
+    unsigned int    len;                /* length of the packet   */
+    char            interface[sr_IFACE_NAMELEN];          /* interface if available/known - not mandatory field */
 } __attribute__ ((packed)) ;
 
 // ICMP packet structure
 struct icmp
 {
-	uint8_t icmp_type;	/* type */
-	uint8_t icmp_code;	/* code */
-	uint16_t icmp_sum;	/* checksum */
-	uint16_t icmp_id;	/* identifier */
-	uint16_t icmp_seqno;	/* sequence number */
+    uint8_t icmp_type;  /* type */
+    uint8_t icmp_code;  /* code */
+    uint16_t icmp_sum;  /* checksum */
+    uint16_t icmp_id;   /* identifier */
+    uint16_t icmp_seqno;    /* sequence number */
 
 }__attribute__ ((packed));
 
 // ICMP time exceeded structure
 struct icmp_time_exceeded
 {
-	uint8_t icmp_type;	/* type */
-	uint8_t icmp_code;	/* code */
-	uint16_t icmp_sum;	/* checksum */
-	uint32_t icmp_unused; 	/* unused */
-	struct ip icmp_ip;		/* ip header */
-	uint64_t icmp_ipdata; 	/* 8 bytes of orginal datagram */
+    uint8_t icmp_type;  /* type */
+    uint8_t icmp_code;  /* code */
+    uint16_t icmp_sum;  /* checksum */
+    uint32_t icmp_unused;   /* unused */
+    struct ip icmp_ip;      /* ip header */
+    uint64_t icmp_ipdata;   /* 8 bytes of orginal datagram */
 }__attribute__ ((packed));
 
 
 // Two structures for Buffering Packets while ARP resolution is being done.
 struct arp_req_details
 {
-	struct packet_details* 	ipPacketDetails; // The original IP packet i.e.. ICMP, IPv4 etc.
-	struct packet_details*	arpRequestPacketDetails; // Here the interface field in packet_details HAVE to be assigned with the "interface" on which the ARP Request was sent
-	unsigned int 	arpReqCounter;
-	time_t			lastARPRequestSent;	/* time when the last ARP was sent */
-	struct arp_req_details* next;
+    struct packet_details*  ipPacketDetails; // The original IP packet i.e.. ICMP, IPv4 etc.
+    struct packet_details*  arpRequestPacketDetails; // Here the interface field in packet_details HAVE to be assigned with the "interface" on which the ARP Request was sent
+    unsigned int    arpReqCounter;
+    time_t          lastARPRequestSent; /* time when the last ARP was sent */
+    struct arp_req_details* next;
 } __attribute__ ((packed)) ;
 
 struct packet_buffer
 {
     uint32_t        destIp;             /* target IP address to which the packets in the buffer needs to be sent */
-	struct arp_req_details* packetListHead; // Start node of the list
-	struct packet_buffer* next;
+    struct arp_req_details* packetListHead; // Start node of the list
+    struct packet_buffer* next;
 } __attribute__ ((packed)) ;
 
 // ARP Cache
 struct arp_cache
 {
-	uint32_t        ip;
-	unsigned char   mac[ETHER_ADDR_LEN];
-	time_t			creationTime;
-	struct arp_cache* next;
+    uint32_t        ip;
+    unsigned char   mac[ETHER_ADDR_LEN];
+    time_t          creationTime;
+    struct arp_cache* next;
 } __attribute__ ((packed)) ;
 
 // ICMP packet structure
 struct transport_layer
 {
-	uint16_t src_port;	/* Source Port */
-	uint16_t dst_port;	/* destination port */
+    uint16_t src_port;  /* Source Port */
+    uint16_t dst_port;  /* destination port */
 }__attribute__ ((packed));
 
 #endif /* -- SR_PROTOCOL_H -- */
