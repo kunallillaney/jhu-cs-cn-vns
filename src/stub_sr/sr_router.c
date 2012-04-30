@@ -28,6 +28,7 @@
 
 struct packet_buffer *_pBuf = NULL;
 struct arp_cache *_arpCache = NULL;
+int isInit=0;
 
 void z_printEthernetHeader(uint8_t * packet) {
     printf("======== Ethernet Header ========\n");
@@ -747,7 +748,12 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
 	/* getting IP Packet */
 	srcIp = (struct ip*) ipPacket;
 
-	/* checking ip checksum */
+	//All normal Cases
+	printf("\n RECIEVED(at <%s>) ICMP(mostly) REQUEST/RESPONSE\n", interface);
+        z_printICMPpacket(ipPacket, ipPacketLen);	
+
+        
+        /* checking ip checksum */
 	testSum = srcIp->ip_sum;
 	srcIp->ip_sum = 0x00;
 	if(verifyCheckSum((uint8_t*)ipPacket, sizeof(struct ip), testSum) == 0)
@@ -759,10 +765,10 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
         //Calling Firewall
         if(FIREWALL_ENABLED==1)
         {
-            if(INIT == 1)
+            if(isInit == 0)
             {
                 init();
-                INIT==0;
+                isInit=1;
             }
             
             printf("\n  Entering inside firewall \n");
@@ -838,8 +844,7 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
 	inSrif = sr_get_interface(sr, interface);
 	if(srcIp->ip_p == 0x01 && srcIp->ip_dst.s_addr == inSrif->ip)
 	{
-                printf("\nRECIEVED(at <%s>) ICMP REQUEST For MYSELF\n", interface);
-                z_printICMPpacket(ipPacket, ipPacketLen);
+                printf("\nThis RECIEVED(at <%s>) ICMP REQUEST IS For MYSELF\n", interface);
 		srcIcmp = (struct icmp*)(ipPacket + sizeof(struct ip));
 	
 		/* checking ICMP checksum */
@@ -878,9 +883,7 @@ struct packet_details* nl_handleIPv4Packet(struct sr_instance* sr,
 		
 	}
 	
-	//All normal Cases
-	printf("\n RECIEVED(at <%s>) ICMP(mostly) REQUEST/RESPONSE For OTHERS\n", interface);
-        z_printICMPpacket(ipPacket, ipPacketLen);	
+        printf("\nThis RECIEVED(at <%s>) ICMP REQUEST IS For OTHERS\n", interface);
 	
 	/* setting ip packet*/
 	srcIp->ip_ttl = srcIp->ip_ttl - 0x01; 

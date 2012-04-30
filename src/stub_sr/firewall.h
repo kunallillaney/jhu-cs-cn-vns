@@ -28,10 +28,6 @@
 #define FIREWALL_ENABLED 1
 #endif
 
-#ifndef INIT
-#define INIT 1
-#endif
-
 struct firewall* firewall_instance;
 
 struct tuple

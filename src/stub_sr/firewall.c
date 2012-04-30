@@ -304,25 +304,27 @@ int check_exception(struct tuple* tr)
 {
     struct rule_table* rule_table_walker = firewall_instance->head_rule_table;
     while(rule_table_walker)
-    {
-/*
-        if(rule_table_walker->ruleEntry->dst_ip.s_addr== 0 || rule_table_walker->ruleEntry->src_ip.s_addr== 0
-                || rule_table_walker->ruleEntry->dst_port== 0 ||rule_table_walker->ruleEntry->src_port== 0 || rule_table_walker->ruleEntry->protocol== 0)
-            return 1;
-*/
+    {     
+        if(
         
-        if((rule_table_walker->ruleEntry->dst_ip.s_addr==tr->dst_ip.s_addr) && (rule_table_walker->ruleEntry->src_ip.s_addr==tr->src_ip.s_addr)
-                && (rule_table_walker->ruleEntry->protocol==tr->protocol))
+        ((rule_table_walker->ruleEntry->dst_ip.s_addr== 0 ) || (rule_table_walker->ruleEntry->dst_ip.s_addr==tr->dst_ip.s_addr)) 
+        && 
+        ((rule_table_walker->ruleEntry->src_ip.s_addr== 0) || (rule_table_walker->ruleEntry->src_ip.s_addr==tr->src_ip.s_addr))
+        && 
+        ((rule_table_walker->ruleEntry->protocol== 0) || (rule_table_walker->ruleEntry->protocol==tr->protocol))
+        
+                )
         {
-            if(tr->protocol!=0x6 && tr->protocol!=0x17)
+            if(tr->protocol==0x1)
+            {
                 return 1;
+            } else {
+                if (((rule_table_walker->ruleEntry->dst_port== 0 )||(rule_table_walker->ruleEntry->dst_port==tr->dst_port))
+                        &&((rule_table_walker->ruleEntry->src_port== 0 )||(rule_table_walker->ruleEntry->src_port==tr->src_port)))
+                    return 1;
+            }
         }
-        else 
-        {
-             if((rule_table_walker->ruleEntry->dst_port==tr->dst_port)&&(rule_table_walker->ruleEntry->src_port==tr->src_port))
-                return 1;
-         }
-         rule_table_walker = rule_table_walker->next; 
+        rule_table_walker = rule_table_walker->next; 
      }
      return 0;      
 } /* end of check_exception */
@@ -337,7 +339,8 @@ int check_exception(struct tuple* tr)
 
 struct rule_table* populate_rule_table()
 {
-        FILE* file = fopen("/home/earth/NetBeansProjects/trunk/src/stub_sr/rule_table", "r");
+        //FILE* file = fopen("/home/lfs/NetBeansProjects/trunk/src/stub_sr/rule_table", "r");
+        FILE* file = fopen("rule_table", "r");
         if(file == NULL) {
             printf("\nno file rule_table found\n");
             return NULL;
@@ -366,15 +369,15 @@ struct rule_table* populate_rule_table()
                 prevRuleTableNode->next = ruleTableNode;
             }
             
-            memcpy(&tempTuple->src_ip, &sip4, sizeof(uint8_t));
-            memcpy((uint8_t*)(&tempTuple->src_ip)+1, &sip3, sizeof(uint8_t));
-            memcpy((uint8_t*)(&tempTuple->src_ip)+2, &sip2, sizeof(uint8_t));
-            memcpy((uint8_t*)(&tempTuple->src_ip)+3, &sip1, sizeof(uint8_t));
+            memcpy(&tempTuple->src_ip, &sip1, sizeof(uint8_t));
+            memcpy((uint8_t*)(&tempTuple->src_ip)+1, &sip2, sizeof(uint8_t));
+            memcpy((uint8_t*)(&tempTuple->src_ip)+2, &sip3, sizeof(uint8_t));
+            memcpy((uint8_t*)(&tempTuple->src_ip)+3, &sip4, sizeof(uint8_t));
             
-            memcpy(&tempTuple->dst_ip, &dip4, sizeof(uint8_t));
-            memcpy((uint8_t*)(&tempTuple->dst_ip)+1, &dip3, sizeof(uint8_t));
-            memcpy((uint8_t*)(&tempTuple->dst_ip)+2, &dip2, sizeof(uint8_t));
-            memcpy((uint8_t*)(&tempTuple->dst_ip)+3, &dip1, sizeof(uint8_t));
+            memcpy(&tempTuple->dst_ip, &dip1, sizeof(uint8_t));
+            memcpy((uint8_t*)(&tempTuple->dst_ip)+1, &dip2, sizeof(uint8_t));
+            memcpy((uint8_t*)(&tempTuple->dst_ip)+2, &dip3, sizeof(uint8_t));
+            memcpy((uint8_t*)(&tempTuple->dst_ip)+3, &dip4, sizeof(uint8_t));
             
             tempTuple->protocol = protocolInFile;
             tempTuple->src_port = srcPort;

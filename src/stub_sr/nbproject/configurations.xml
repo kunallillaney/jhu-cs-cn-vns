@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configurationDescriptor version="80">
+  <logicalFolder name="root" displayName="root" projectFiles="true" kind="ROOT">
+    <df name="stub_sr" root=".">
+      <df name="topo_interactor">
+        <df name="impacket">
+          <df name="dcerpc">
+            <in>__init__.py</in>
+            <in>conv.py</in>
+            <in>dcerpc.py</in>
+            <in>dcerpc_v4.py</in>
+            <in>dcom.py</in>
+            <in>epm.py</in>
+            <in>ndrutils.py</in>
+            <in>printer.py</in>
+            <in>samr.py</in>
+            <in>srvsvc.py</in>
+            <in>svcctl.py</in>
+            <in>transport.py</in>
+            <in>winreg.py</in>
+          </df>
+          <in>ImpactDecoder.py</in>
+          <in>ImpactPacket.py</in>
+          <in>__init__.py</in>
+          <in>nmb.py</in>
+          <in>ntlm.py</in>
+          <in>smb.py</in>
+          <in>structure.py</in>
+          <in>uuid.py</in>
+        </df>
+        <df name="ltprotocol">
+          <in>__init__.py</in>
+          <in>ltprotocol.py</in>
+        </df>
+        <in>LoggingHelper.py</in>
+        <in>README</in>
+        <in>TopologyInteractionProtocol.py</in>
+        <in>VNSProtocol.py</in>
+        <in>topo_interactor.py</in>
+      </df>
+      <in>firewall.c</in>
+      <in>firewall.h</in>
+      <in>sha1.c</in>
+      <in>sha1.h</in>
+      <in>sr_dumper.c</in>
+      <in>sr_dumper.h</in>
+      <in>sr_if.c</in>
+      <in>sr_if.h</in>
+      <in>sr_main.c</in>
+      <in>sr_protocol.h</in>
+      <in>sr_router.c</in>
+      <in>sr_router.h</in>
+      <in>sr_rt.c</in>
+      <in>sr_rt.h</in>
+      <in>sr_vns_comm.c</in>
+      <in>vnscommand.h</in>
+    </df>
+    <logicalFolder name="ExternalFiles"
+                   displayName="Important Files"
+                   projectFiles="false"
+                   kind="IMPORTANT_FILES_FOLDER">
+      <itemPath>Makefile</itemPath>
+    </logicalFolder>
+  </logicalFolder>
+  <sourceFolderFilter>^(nbproject)$</sourceFolderFilter>
+  <sourceRootList>
+    <Elem>.</Elem>
+  </sourceRootList>
+  <projectmakefile>Makefile</projectmakefile>
+  <confs>
+    <conf name="Default" type="0">
+      <toolsSet>
+        <remote-sources-mode>LOCAL_SOURCES</remote-sources-mode>
+        <compilerSet>default</compilerSet>
+      </toolsSet>
+      <makefileType>
+        <makeTool>
+          <buildCommandWorkingDir>.</buildCommandWorkingDir>
+          <buildCommand>${MAKE} -f Makefile</buildCommand>
+          <cleanCommand>${MAKE} -f Makefile clean</cleanCommand>
+          <executablePath>sr</executablePath>
+          <cTool>
+            <preprocessorList>
+              <Elem>_DEBUG_</Elem>
+              <Elem>_LINUX_</Elem>
+            </preprocessorList>
+          </cTool>
+        </makeTool>
+      </makefileType>
+    </conf>
+  </confs>
+</configurationDescriptor>

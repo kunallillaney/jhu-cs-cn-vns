@@ -19,6 +19,7 @@ ROUTER:
 
 FIREWALL:
 1- Use FIREWALL_ENABLE in firewall.h to enable/disable firewall.
+2- Set the path to the rule_table in populate_rule_table() in firewall.c 
 2- Inbound Exceptions for Firewall are stored in rule_table.
 3- FLOW TABLE size fixed at 64.
 4- TIME update fixed at value 5.
